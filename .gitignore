@@ -33,3 +33,7 @@ attachments/
 *.log
 *.tmp
 .DS_Store
+
+# Streamlit-managed credentials must never enter source control.
+.streamlit/secrets.toml
+**/secrets.toml

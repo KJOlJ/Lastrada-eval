@@ -14,6 +14,10 @@ bash scripts/install.sh
 
 Alternatively, create a virtual environment with `python -m venv .venv`, install `requirements.lock` with pip, then install this project using `pip install --no-deps -e .` inside that environment. FFmpeg is recommended for compressed formats; soundfile supports WAV/FLAC and many MP3 files. No paid APIs are required.
 
+## Deploy on Streamlit Community Cloud
+
+Use repository `tankr98/Lastrada`, branch `feat/lastrada-v0`, entrypoint `app.py`, and Python 3.12. Production dependencies and native audio packages are declared in `requirements.txt` and `packages.txt`. Set app sharing to **Only specific people can view this app** before client uploads. See [deployment instructions](docs/DEPLOYMENT.md).
+
 ## Workflow
 
 1. Start on Intake: upload the original and new recordings, preview each, enter their titles/artists, and choose Master, Publishing or Both. Case/version notes are optional. Demo and experimental matching controls live in the sidebar.

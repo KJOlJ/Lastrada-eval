@@ -18,16 +18,16 @@ Alternatively, create a virtual environment with `python -m venv .venv`, install
 
 Use repository `tankr98/Lastrada`, branch `feat/lastrada-v0`, entrypoint `app.py`, and Python 3.12. Production dependencies and native audio packages are declared in `requirements.txt` and `packages.txt`. Set app sharing to **Only specific people can view this app** before client uploads. See [deployment instructions](docs/DEPLOYMENT.md).
 
-## Workflow
+## A four-step creator workflow
 
-1. Start on Intake: upload the original and new recordings, preview each, enter their titles/artists, and choose Master, Publishing or Both. Case/version notes are optional. Demo and experimental matching controls live in the sidebar.
-Use **Next** and **Back** to move through the four steps. Next is enabled after intake analysis finishes, and moving from draft review to export saves corrections without approving them.
+1. **Add your tracks:** upload the original and your new track, enter both titles/artists, and choose whether you sampled the recording, replayed/re-sang the music, or need both paths checked.
+2. **Listen & explore:** compare playback and suggested moments. Estimated audio overlap is a listening aid, not confirmed sample coverage. Technical details are tucked away.
+3. **Describe your sample:** identify the sound or musical part, enter its appearances in your track, name sections, explain how you used it, repetition and its role. Generate and edit the Nature of Use draft. Optional original timestamps, lyrics and pitch details are retained when known.
+4. **Your Nature of Use:** read the document, see any missing details and download HTML or text. HTML can be printed to PDF. The analysis JSON and automated/reviewed versions remain optional supporting material.
 
-2. Inspect experimental PF-NMF regions and optional SampleID candidates. Publishing and Master findings remain separate.
-3. Add listening-based timestamps, musical elements, sections, reuse method, repetition and role. Choose a six-class placement and edit the draft.
-4. Save corrections or approve resolved findings. Export JSON/HTML before closing the session.
+**Next** saves draft corrections; **Back** preserves edits. Marking a document as reviewed requires confirmed findings, checked details and a reviewer name. Incomplete drafts remain downloadable and clearly list missing inputs. Recording reuse and compositional reuse stay separate throughout.
 
-Playback and analysis run locally. The app does not upload audio to external models. Uploads and reviews are session-local, not a persistent case database. Downloaded reports contain case information and need approved private storage.
+Playback and analysis run in the hosting workspace. There is no external model API. Uploads and reviews are session-local, not a persistent case database. Downloaded documents contain case information and need approved private storage.
 
 ## Capability status
 

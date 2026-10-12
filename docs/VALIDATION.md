@@ -2,7 +2,7 @@
 
 Validated in a Python 3.12 Linux cloud environment on CPU with FFmpeg available.
 
-- `pytest -q`: 46 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow with Next/Back navigation, saved edits and approval preservation.
+- `pytest -q`: 49 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow with Next/Back navigation, saved edits and approval preservation.
 - `ruff check .` and `git diff --check`: passed.
 - Synthetic end-to-end baseline: known coverage 66.67%, estimated spectral activation 67.07%, absolute error 0.40 percentage points. This single generated signal pair is not a real-music benchmark.
 - `scripts/check_sampleid.py`: authoritative checksum-verified Sony weights, CPU inference, embedding shape 1×2048 and self-match cosine approximately 0.99999988. This is integration evidence, not historical accuracy.

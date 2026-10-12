@@ -13,8 +13,13 @@ from lastrada.audio.synthetic import demo_pair
 from lastrada.pipeline import analyze_pair
 from lastrada.schemas.models import Intake, Work, PLACEMENT_CLASSES, Feature, Interval, Placement
 from lastrada.reporting.review import reviewed_copy
-from lastrada.reporting.export import json_report, html_report
-from lastrada.synthesis.narrative import draft
+from lastrada.reporting.export import json_report
+from lastrada.reporting.document import (
+    document_text,
+    document_html,
+    missing_document_inputs,
+    creator_narrative,
+)
 from lastrada.alignment.intervals import coverage
 from lastrada.classification.placement import classify
 from lastrada.recognition.sampleid_adapter import SampleIDAdapter, SampleIDUnavailable
@@ -42,8 +47,8 @@ h1,h2,h3 {letter-spacing:-.035em;}
 .hero p {color:#746b80;font-size:17px;max-width:670px;line-height:1.6;}
 </style>
 <div class="hero"><div class="eyebrow">Lastrada / Nature of Use</div>
-<h1>Start with the music.</h1>
-<p>Add the original and new recordings. Build a draft of how the music is used, then review the evidence before sharing.</p></div>
+<h1>Your sample. Its story.</h1>
+<p>Turn the sample in your track into a clear Nature of Use document. Add two tracks, check the suggested moments, describe your creative choices, and finish your draft.</p></div>
 """,
     unsafe_allow_html=True,
 )
@@ -51,16 +56,20 @@ with st.sidebar:
     st.markdown("### Lastrada")
     st.caption("NATURE OF USE WORKSPACE")
     st.divider()
-    st.markdown("**01 · Add your recordings**")
-    st.caption("Original work, new work and requested rights.")
-    st.markdown("**02 · Explore the evidence**")
-    st.caption("Listen, inspect timelines and check uncertain findings.")
-    st.markdown("**03 · Review the description**")
-    st.caption("Add musical context and correct the draft.")
-    st.markdown("**04 · Export your report**")
-    st.caption("Keep the automated evidence and your reviewed version.")
+    st.markdown("**01 · Add your tracks**")
+    st.caption(
+        "Upload the source track and your new track. Add titles, artists and the kind of reuse."
+    )
+    st.markdown("**02 · Listen & explore**")
+    st.caption(
+        "Hear both tracks and check suggested sample moments. Nothing is confirmed until you check it."
+    )
+    st.markdown("**03 · Describe your sample**")
+    st.caption("Tell us what you took, where it appears and how it works in your track.")
+    st.markdown("**04 · Your Nature of Use**")
+    st.caption("Review the description and download your Nature of Use document.")
     st.divider()
-    st.caption("Draft assistant · Expert review required")
+    st.caption("Made for creators · Review before sharing")
     with st.expander("Demo and advanced options"):
         synthetic = st.checkbox("Use a clearly labeled synthetic demonstration", key="demo")
         use_sampleid = st.checkbox("Include optional SampleID candidate matching", value=False)
@@ -106,10 +115,10 @@ def chart(audio, intervals=(), color="#7950B5"):
 
 
 WORKFLOW_STEPS = [
-    "1 · Intake",
-    "2 · Locate and measure",
-    "3 · Classify and describe",
-    "4 · Review and export",
+    "1 · Add your tracks",
+    "2 · Listen & explore",
+    "3 · Describe your sample",
+    "4 · Your Nature of Use",
 ]
 
 
@@ -123,20 +132,42 @@ def validate_step():
         st.session_state.workflow_tab = WORKFLOW_STEPS[0]
 
 
+if "pending_narrative" in st.session_state:
+    st.session_state.review_narrative = st.session_state.pop("pending_narrative")
 if "pending_workflow_tab" in st.session_state:
     st.session_state.workflow_tab = st.session_state.pop("pending_workflow_tab")
+legacy_steps = [
+    "1 · Intake",
+    "2 · Locate and measure",
+    "3 · Classify and describe",
+    "4 · Review and export",
+]
+if st.session_state.get("workflow_tab") not in WORKFLOW_STEPS:
+    previous = st.session_state.get("workflow_tab")
+    st.session_state.workflow_tab = WORKFLOW_STEPS[
+        legacy_steps.index(previous) if previous in legacy_steps else 0
+    ]
 validate_step()
 views = st.tabs(WORKFLOW_STEPS, key="workflow_tab", on_change=validate_step)
 current_step = WORKFLOW_STEPS.index(st.session_state.get("workflow_tab", WORKFLOW_STEPS[0]))
-st.caption(f"Step {current_step + 1} of 4 · {WORKFLOW_STEPS[current_step].split(' · ')[1]}")
+st.progress(
+    (current_step + 1) / 4,
+    text=f"Step {current_step + 1} of 4 · {WORKFLOW_STEPS[current_step].split(' · ')[1]}",
+)
 
 with views[0]:
-    st.subheader("Create a new analysis")
-    st.caption("Provide both recordings and tell us which rights you want to examine.")
+    st.subheader("Step 1 · Add your tracks")
+    with st.expander("What you’ll need for a complete Nature of Use"):
+        st.markdown(
+            "**Now:** two audio files, titles, artists and type of reuse.\n\n**After listening:** the sound or musical part you used, times it appears in your track, song sections, how you used it, repetition, and its role in the track.\n\n**To finish:** a checked description and a reviewer’s name. You can download an unfinished draft; missing details stay clearly listed."
+        )
+    st.caption(
+        "You’ll need the original track, your new track, and the title and artist for each. MP3 files work."
+    )
     left, right = st.columns(2, gap="large")
     with left, st.container(border=True):
-        st.markdown("#### 01 · Original recording")
-        st.caption("The existing work that is being sampled or re-performed.")
+        st.markdown("#### The original track")
+        st.caption("The track you sampled, or the song whose melody or lyrics you replayed.")
         original_file = st.file_uploader(
             "Original audio",
             type=["wav", "flac", "mp3", "m4a", "ogg"],
@@ -146,8 +177,8 @@ with views[0]:
             st.audio(original_file.getvalue(), format=original_file.type or "audio/mpeg")
             st.caption(f"{original_file.name} · {original_file.size / 1024 / 1024:.1f} MB")
     with right, st.container(border=True):
-        st.markdown("#### 02 · New recording")
-        st.caption("The new work that incorporates material from the original.")
+        st.markdown("#### Your new track")
+        st.caption("Your finished track or current mix containing the sample.")
         new_file = st.file_uploader(
             "New audio",
             type=["wav", "flac", "mp3", "m4a", "ogg"],
@@ -177,15 +208,20 @@ with views[0]:
                 "New artist", "Generated tones" if synthetic else "", placeholder="Artist or group"
             )
         st.divider()
-        st.markdown("#### 03 · Requested rights analysis")
+        st.markdown("#### What kind of reuse are you documenting?")
         scope = st.radio(
-            "Requested analysis",
+            "Type of reuse",
             ["Both", "Master", "Publishing"],
             horizontal=True,
-            help="Choose the scope supplied by the requester; this is not a finding about the audio.",
+            format_func=lambda x: {
+                "Master": "Sampled the recording",
+                "Publishing": "Replayed or re-sang it",
+                "Both": "Both / check both",
+            }[x],
+            help="Using the actual recording involves master rights. Replaying a melody or re-singing lyrics involves publishing rights. These are separate findings.",
         )
         st.caption(
-            "Master: audio from an existing recording. Publishing: melody, harmony or lyrics, including replayed or re-sung material. Both: separate findings for each path."
+            "Not sure? Choose both. Recording samples and replayed melodies or lyrics are documented separately."
         )
         with st.expander("Case reference and recording versions · optional"):
             case_id = st.text_input(
@@ -204,7 +240,7 @@ with views[0]:
         st.caption(
             "Your recordings are processed in this workspace. Analysis produces an experimental draft that needs expert review."
         )
-        submitted = st.form_submit_button("Start analysis", type="primary", width="stretch")
+        submitted = st.form_submit_button("Find suggested moments", type="primary", width="stretch")
     if submitted:
         try:
             if not synthetic and (not original_file or not new_file):
@@ -274,13 +310,15 @@ with views[0]:
             for key in list(st.session_state):
                 if key.startswith("review_"):
                     del st.session_state[key]
-            st.success("Analysis complete. Continue to Locate and measure, then review the draft.")
+            st.success(
+                "Your tracks are ready. Next, listen and explore, then tell us how you used the sample."
+            )
         except (ValueError, RuntimeError, OSError) as exc:
             st.error(str(exc))
     if "analysis" in st.session_state:
         active = st.session_state.analysis
         st.success(
-            f"Current analysis: {active.input.new_work.title} · Continue to Locate and measure."
+            f"Your track: {active.input.new_work.title} · Next, listen and explore the suggested moments."
         )
         with st.expander("Listen to the analyzed recordings"):
             st.caption("Original recording")
@@ -290,7 +328,7 @@ with views[0]:
 
     st.divider()
     st.button(
-        "Next: Locate and measure →",
+        "Next: Listen & explore →",
         key="next_intake",
         type="primary",
         width="stretch",
@@ -303,6 +341,10 @@ with views[0]:
 
 result = st.session_state.get("analysis")
 with views[1]:
+    st.subheader("Step 2 · Listen & explore")
+    st.caption(
+        "Compare the tracks and check the suggested moments. The analysis is a starting point, not a substitute for listening."
+    )
     if result is None:
         st.write("Provide a pair in Intake, or try the synthetic demonstration.")
     else:
@@ -312,29 +354,57 @@ with views[1]:
             )
         for rights in result.input.analysis_scope:
             path = getattr(result, rights)
-            st.subheader(rights.capitalize())
-            st.write(f"Finding status: **{path.locate.detection_status.replace('_', ' ')}**")
+            st.subheader("Recorded audio" if rights == "master" else "Melody & lyrics")
+            st.caption(
+                {
+                    "candidate": "Suggested matches · check by listening",
+                    "not_verified": "Waiting for your listening check",
+                    "unknown": "More information needed",
+                    "not_detected": "No matches found by this check",
+                    "verified": "Checked by the reviewer",
+                }.get(path.locate.detection_status, "Not requested")
+            )
             if rights == "master":
                 seconds, percent = (
                     path.locate.total_covered_seconds,
                     path.locate.coverage_percentage,
                 )
                 st.metric(
-                    "Experimental spectral activation coverage", f"{percent:.1f}% · {seconds:.2f}s"
+                    "Estimated audio overlap — experimental", f"{percent:.1f}% · {seconds:.2f}s"
                 )
                 st.caption(
-                    "Shaded PF-NMF regions measure spectral activation, not verified recording reuse."
+                    "Shading marks moments with similar sound patterns. Shared instruments can also create overlap, so this is not a confirmed sample percentage."
                 )
                 st.plotly_chart(
                     chart(st.session_state.new_audio, path.locate.measurement_intervals),
                     width="stretch",
                     key="new_measurement_chart",
                 )
-                st.write("Candidate recording matches")
-                st.dataframe([i.model_dump() for i in path.locate.sample_occurrences])
-                st.write("Experimental measurement regions")
-                st.dataframe([i.model_dump() for i in path.locate.measurement_intervals])
-                st.write("Original reference waveform")
+                st.write("Suggested moments to listen to")
+                if path.locate.sample_occurrences:
+                    st.dataframe(
+                        [
+                            {
+                                "Your track starts (s)": i.new_start,
+                                "Ends (s)": i.new_end,
+                                "Original starts (s)": i.original_start,
+                                "Original ends (s)": i.original_end,
+                            }
+                            for i in path.locate.sample_occurrences
+                        ]
+                    )
+                else:
+                    st.caption(
+                        "No sample timestamps have been confirmed. Add the moments you hear in step 3."
+                    )
+                with st.expander("See estimated overlap times"):
+                    st.dataframe(
+                        [
+                            {"Start in your track (s)": i.new_start, "End (s)": i.new_end}
+                            for i in path.locate.measurement_intervals
+                        ]
+                    )
+                st.write("The original track")
                 source_intervals = [
                     i.model_copy(update={"new_start": i.original_start, "new_end": i.original_end})
                     for i in path.locate.sample_occurrences
@@ -347,19 +417,22 @@ with views[1]:
                 )
             else:
                 st.write(
-                    "Composition localization is unavailable automatically. Add verified publishing "
-                    "occurrences in review; master candidates are not copied into this path."
+                    "Replayed melodies and re-sung lyrics need your listening notes. The tool cannot automatically locate them yet. Describe them separately from any recording sample in step 3."
                 )
-            for limitation in path.describe.limitations:
-                st.caption(limitation)
-        st.json(result.methods)
-        st.write("Processing time (seconds)", result.timings_seconds)
+        with st.expander("How the analysis works · technical details"):
+            st.caption(
+                "The tool compares sound patterns. It cannot reliably identify instruments, lyrics or musical sections for you yet. Your listening notes complete the document."
+            )
+            st.json(result.methods)
+            st.write("Processing time (seconds)", result.timings_seconds)
+            for rights in result.input.analysis_scope:
+                st.write(getattr(result, rights).describe.limitations)
 
     st.divider()
     back, forward = st.columns(2)
-    back.button("← Back: Intake", key="back_evidence", on_click=go_to_step, args=(0,))
+    back.button("← Back: Add your tracks", key="back_evidence", on_click=go_to_step, args=(0,))
     forward.button(
-        "Next: Classify and describe →",
+        "Next: Describe your sample →",
         key="next_evidence",
         type="primary",
         width="stretch",
@@ -369,30 +442,25 @@ with views[1]:
     )
 
 with views[2]:
+    st.subheader("Step 3 · Describe your sample")
     if result is None:
         st.write("Analyze a pair to create a structured draft.")
     else:
-        st.subheader("Automated draft")
-        st.write(result.nature_of_use.text)
-        for rights in result.input.analysis_scope:
-            path = getattr(result, rights)
-            st.write(
-                f"**{rights.capitalize()} placement:** "
-                f"{path.classification.placement.value if path.classification.placement else 'Needs review'}"
-            )
-            st.caption(path.classification.reason)
-        st.subheader("Expert correction")
+        st.subheader("Your working description")
+        st.write(creator_narrative(result))
         st.caption(
-            "Enter listening-based findings independently for each rights path. "
-            "Saving keeps the automated predictions alongside a separate reviewed version."
+            "Tell us what a listener should know: what you took, where it appears, how it repeats, and the role it plays in your track. These details shape the final document."
         )
         reviewed_paths = {}
         for rights in result.input.analysis_scope:
             path = getattr(result, rights).model_copy(deep=True)
-            with st.expander(f"{rights.capitalize()} findings", expanded=True):
+            with st.expander(
+                "Your recording sample" if rights == "master" else "Your replayed melody / lyrics",
+                expanded=True,
+            ):
                 key = f"review_{rights}_"
                 status = st.selectbox(
-                    "Reuse finding",
+                    "Have you checked this use?",
                     ["not_verified", "unknown", "candidate", "not_detected", "verified"],
                     index=[
                         "not_verified",
@@ -402,10 +470,19 @@ with views[2]:
                         "verified",
                     ].index(path.locate.detection_status),
                     key=key + "status",
+                    format_func=lambda x: {
+                        "not_verified": "I haven’t checked it yet",
+                        "unknown": "I’m not sure",
+                        "candidate": "Possible use — needs checking",
+                        "not_detected": "I didn’t find reuse in this path",
+                        "verified": "I’ve confirmed this use",
+                    }[x],
                 )
                 st.caption(
-                    "Verified means you have independently confirmed reuse. Not detected means no "
-                    "reuse was found by the stated review, not a guarantee of absence."
+                    "Choose ‘I’ve confirmed this use’ only after listening. Similarity scores cannot confirm a sample for you."
+                )
+                st.markdown(
+                    "**Where can we hear it?** Add a row for each appearance in your track. Enter seconds (1:15 = 75). Original-track times are optional when you haven’t located them yet."
                 )
                 rows = [
                     {
@@ -423,36 +500,69 @@ with views[2]:
                     num_rows="dynamic",
                     key=key + "intervals",
                     column_config={
-                        c: st.column_config.NumberColumn(c, min_value=0.0, step=0.01)
+                        c: st.column_config.NumberColumn(
+                            {
+                                "new_start": "Your track · start (s)",
+                                "new_end": "Your track · end (s)",
+                                "original_start": "Original · start (s)",
+                                "original_end": "Original · end (s)",
+                            }[c],
+                            min_value=0.0,
+                            step=0.01,
+                        )
                         for c in ["new_start", "new_end", "original_start", "original_end"]
                     },
                 )
                 element = st.text_input(
-                    "Musical element / instrumentation (only if identified)", key=key + "element"
+                    "What did you take?",
+                    placeholder="For example: a vocal phrase, drum break or guitar melody",
+                    key=key + "element",
                 )
-                lyrics = st.text_input("Reused lyrics (only if identified)", key=key + "lyrics")
+                lyrics = st.text_input("Any reused lyrics? (optional)", key=key + "lyrics")
                 reuse_type = st.text_input(
-                    "Reuse method (e.g. replayed, resung, direct recording reuse)",
+                    "How did you use it?",
                     key=key + "method",
+                    placeholder="For example: chopped the original recording, replayed the melody",
                 )
-                repetition = st.text_input("Repetition / looping pattern", key=key + "repetition")
-                role = st.text_input("Role in the new recording", key=key + "role")
+                repetition = st.text_input(
+                    "Does it loop or repeat?",
+                    placeholder="For example: a four-bar loop under each verse",
+                    key=key + "repetition",
+                )
+                role = st.text_input(
+                    "What does it do in your track?",
+                    placeholder="For example: the main hook, or a texture under new vocals",
+                    key=key + "role",
+                )
                 pitch = st.number_input(
-                    "Pitch alteration in semitones (only if verified)", value=0.0, key=key + "pitch"
+                    "Did you pitch it up or down? (semitones, optional)",
+                    value=0.0,
+                    key=key + "pitch",
                 )
                 pitch_known = st.checkbox(
-                    "Pitch alteration independently verified", key=key + "pitch_known"
+                    "I know this pitch change is correct", key=key + "pitch_known"
                 )
                 sections = st.multiselect(
-                    "Sections",
+                    "Which sections of your track?",
                     ["intro", "verse", "chorus", "bridge", "outro"],
                     key=key + "sections",
                 )
                 placement = st.selectbox(
-                    "Placement class", ["Needs review"] + PLACEMENT_CLASSES, key=key + "placement"
+                    "Where does it appear overall?",
+                    ["Needs review"] + PLACEMENT_CLASSES,
+                    key=key + "placement",
+                    format_func=lambda x: {
+                        "Needs review": "Still deciding",
+                        "throughout": "Throughout the track",
+                        "intro_outro_with_chorus": "Intro / outro and chorus",
+                        "chorus_only": "Choruses only",
+                        "intro_outro_without_chorus": "Intro / outro, outside the chorus",
+                        "verses": "Verses",
+                        "one_time": "One appearance",
+                    }[x],
                 )
                 confirmed = st.checkbox(
-                    "I have checked this path’s findings and classification", key=key + "checked"
+                    "I’ve listened and checked these details", key=key + "checked"
                 )
                 try:
                     occurrences = []
@@ -535,34 +645,58 @@ with views[2]:
             from lastrada.schemas.models import PathResult
 
             setattr(candidate, rights, PathResult.model_validate(value))
-        generated = draft(candidate).text
-        if st.button("Fill narrative from reviewed findings"):
+        remaining = missing_document_inputs(candidate)
+        if remaining:
+            with st.expander(f"What’s still needed? · {len(remaining)} details"):
+                for item in remaining:
+                    st.write("• " + item)
+        else:
+            st.success(
+                "Your musical details are complete. Generate the draft and give it a final read."
+            )
+        generated = creator_narrative(candidate)
+        if st.button("Generate Nature of Use draft", type="primary"):
             st.session_state.review_narrative = generated
+            st.session_state.review_generated_text = generated
         narrative = st.text_area(
-            "Editable Nature of Use",
-            value=result.nature_of_use.text,
+            "Edit your Nature of Use draft",
+            value=creator_narrative(result),
             height=180,
             key="review_narrative",
         )
-        reviewer = st.text_input("Reviewer name", key="review_name")
-        notes = st.text_area("Review notes / remaining uncertainty", key="review_notes")
+        reviewer = st.text_input(
+            "Your name / reviewer (required to mark as reviewed)", key="review_name"
+        )
+        notes = st.text_area("Anything still to check? (optional)", key="review_notes")
         left, right = st.columns(2)
-        save = left.button("Save corrections")
-        approve = right.button("Approve reviewed draft", type="primary")
+        save = left.button("Save draft")
+        approve = right.button("Mark document as reviewed", type="primary")
         st.divider()
-        st.caption("Next saves your corrections as a draft. Approval is a separate action.")
+        st.caption(
+            "Next saves your description as a draft. Marking it as reviewed is a separate action."
+        )
         back, forward = st.columns(2)
-        back.button("← Back: Locate and measure", key="back_draft", on_click=go_to_step, args=(1,))
+        back.button("← Back: Listen & explore", key="back_draft", on_click=go_to_step, args=(1,))
         proceed = forward.button(
-            "Next: Review and export →", key="next_draft", type="primary", width="stretch"
+            "Next: Your Nature of Use →", key="next_draft", type="primary", width="stretch"
         )
         if save or approve or proceed:
             try:
                 if len(reviewed_paths) != len(result.input.analysis_scope):
                     raise ValueError("Resolve invalid fields before saving")
+                if narrative in (
+                    st.session_state.get("review_generated_text"),
+                    creator_narrative(result),
+                ):
+                    narrative = generated
                 updated = reviewed_copy(
                     result, reviewed_paths, narrative, reviewer, approve=approve, notes=notes
                 )
+                if approve and missing_document_inputs(updated):
+                    raise ValueError(
+                        "Complete the musical details before marking this document as reviewed: "
+                        + "; ".join(missing_document_inputs(updated))
+                    )
                 if proceed and result.review.status == "approved":
                     previous_payload = deepcopy(result.review.corrected)
                     updated_payload = deepcopy(updated.review.corrected)
@@ -575,11 +709,10 @@ with views[2]:
                     ):
                         updated = result
                 st.session_state.analysis = updated
-                st.success(
-                    "Reviewed version saved for this session. Export it in Review and export."
-                )
+                st.success("Draft saved for this session. Your document is in step 4.")
                 result = st.session_state.analysis
                 if proceed:
+                    st.session_state.pending_narrative = narrative
                     st.session_state.pending_workflow_tab = WORKFLOW_STEPS[3]
                     st.rerun()
             except ValueError as exc:
@@ -607,27 +740,64 @@ with views[2]:
                     st.error(str(exc))
 
 with views[3]:
+    st.subheader("Step 4 · Your Nature of Use")
+    st.caption(
+        "The finished product: a clear account of what you took and how you used it. Review the text, then download your document."
+    )
     if result is None:
-        st.write("An analysis is required before export.")
+        st.write("Add your tracks and work through the first three steps to create your document.")
     else:
-        st.write(f"Review status: **{result.review.status}**")
-        st.write(
-            "Download reports before leaving the session. They contain confidential case information; "
-            "keep them in your approved private storage."
+        missing = missing_document_inputs(result)
+        if missing:
+            st.warning("This is an unfinished draft. These details still need your input:")
+            for item in missing:
+                st.write("• " + item)
+        elif result.review.status != "approved":
+            st.info(
+                "Your details are filled in. Give the description a final listening check and mark it as reviewed in step 3."
+            )
+        else:
+            st.success("Reviewed Nature of Use · ready to download")
+        source = result.review.corrected or result.model_dump(mode="json")
+        with st.container(border=True):
+            st.caption(
+                "NATURE OF USE · " + ("REVIEWED" if result.review.status == "approved" else "DRAFT")
+            )
+            st.subheader(result.input.new_work.title + " — " + result.input.new_work.artist)
+            st.caption(
+                "Original: "
+                + result.input.original_work.title
+                + " — "
+                + result.input.original_work.artist
+            )
+            st.write(source["nature_of_use"]["text"])
+        left, right = st.columns(2)
+        left.download_button(
+            "Download Nature of Use · HTML",
+            document_html(result),
+            "nature-of-use.html",
+            "text/html",
+            type="primary",
+            width="stretch",
         )
-        with st.expander("Original automated output"):
+        right.download_button(
+            "Download Nature of Use · Text",
+            document_text(result),
+            "nature-of-use.txt",
+            "text/plain",
+            width="stretch",
+        )
+        st.caption(
+            "The HTML document can be opened in a browser and printed to PDF. Download before leaving; drafts are saved for this session only."
+        )
+        with st.expander("Supporting analysis and saved versions"):
             st.json(result.model_dump(mode="json", exclude={"review"}))
-        with st.expander(
-            "Separate expert corrections", expanded=result.review.corrected is not None
-        ):
             st.json(result.review.model_dump(mode="json"))
-        # Fixed filenames avoid accidental path/HTML injection from user-provided identifiers.
-        st.download_button(
-            "Export JSON", json_report(result), "lastrada-analysis.json", "application/json"
-        )
-        st.download_button(
-            "Export HTML report", html_report(result), "lastrada-report.html", "text/html"
-        )
-
+            st.download_button(
+                "Download analysis data · JSON",
+                json_report(result),
+                "lastrada-analysis.json",
+                "application/json",
+            )
     st.divider()
-    st.button("← Back: Classify and describe", key="back_export", on_click=go_to_step, args=(2,))
+    st.button("← Back: Describe your sample", key="back_export", on_click=go_to_step, args=(2,))

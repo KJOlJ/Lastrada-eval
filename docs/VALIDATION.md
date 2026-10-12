@@ -1,0 +1,14 @@
+# v0 validation evidence
+
+Validated in a Python 3.12 Linux cloud environment on CPU with FFmpeg available.
+
+- `pytest -q`: 41 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow.
+- `ruff check .` and `git diff --check`: passed.
+- Synthetic end-to-end baseline: known coverage 66.67%, estimated spectral activation 67.07%, absolute error 0.40 percentage points. This single generated signal pair is not a real-music benchmark.
+- `scripts/check_sampleid.py`: authoritative checksum-verified Sony weights, CPU inference, embedding shape 1×2048 and self-match cosine approximately 0.99999988. This is integration evidence, not historical accuracy.
+- `scripts/install.sh` followed by `scripts/install_sampleid.sh`: repeat setup completed; existing weights verified rather than downloaded again.
+- Streamlit launched and served its health endpoint and HTML. Its interaction test executed synthetic intake, analysis, correction persistence and unresolved-approval rejection.
+
+Historical ingestion/audit completed locally. Reserved-case evaluation listed unavailable/unconfirmed cases explicitly; no real placement accuracy or paragraph quality result is claimed. Detailed audit/evaluation outputs remain ignored and private. Actual client audio was not supplied.
+
+The app can process uploaded audio and generate reviewable drafts. Publishing localization, musical characterization, section labels and final judgments require human evidence. Snapshot publication and restoration in a fresh task have not been independently validated.

@@ -23,12 +23,49 @@ from lastrada.config import load_settings
 settings = load_settings()
 
 st.set_page_config(page_title="Lastrada · Nature of Use", page_icon="🎵", layout="wide")
-st.title("Lastrada")
-st.caption("Audio to Nature of Use · Evidence, draft, expert review")
-st.info(
-    "Experimental v0. Publishing reuse and recording reuse are separate findings. "
-    "A numerical match is a candidate for review, not verified sampling or clearance."
+st.markdown(
+    """
+<style>
+.stApp {background:#f8f7fb;}
+.block-container {max-width:1200px;padding-top:2.5rem;}
+h1,h2,h3 {letter-spacing:-.035em;}
+[data-testid="stSidebar"] {background:#efebf6;border-right:1px solid #e0d9ec;}
+[data-testid="stVerticalBlockBorderWrapper"] {border-radius:18px;}
+[data-testid="stFileUploader"] {border-radius:14px;}
+[data-baseweb="tab-list"] {gap:24px;margin-bottom:24px;border-bottom:1px solid #e3ddea;}
+[data-baseweb="tab"] {padding:14px 0;font-weight:600;}
+.stButton>button,.stFormSubmitButton>button {border-radius:10px;min-height:44px;}
+.eyebrow {color:#7950b5;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;}
+.hero {margin:0 0 24px;}
+.hero h1 {font-size:42px;line-height:1.12;margin:8px 0 12px;}
+.hero p {color:#746b80;font-size:17px;max-width:670px;line-height:1.6;}
+</style>
+<div class="hero"><div class="eyebrow">Lastrada / Nature of Use</div>
+<h1>Start with the music.</h1>
+<p>Add the original and new recordings. Build a draft of how the music is used, then review the evidence before sharing.</p></div>
+""",
+    unsafe_allow_html=True,
 )
+with st.sidebar:
+    st.markdown("### Lastrada")
+    st.caption("NATURE OF USE WORKSPACE")
+    st.divider()
+    st.markdown("**01 · Add your recordings**")
+    st.caption("Original work, new work and requested rights.")
+    st.markdown("**02 · Explore the evidence**")
+    st.caption("Listen, inspect timelines and check uncertain findings.")
+    st.markdown("**03 · Review the description**")
+    st.caption("Add musical context and correct the draft.")
+    st.markdown("**04 · Export your report**")
+    st.caption("Keep the automated evidence and your reviewed version.")
+    st.divider()
+    st.caption("Draft assistant · Expert review required")
+    with st.expander("Demo and advanced options"):
+        synthetic = st.checkbox("Use a clearly labeled synthetic demonstration", key="demo")
+        use_sampleid = st.checkbox("Include optional SampleID candidate matching", value=False)
+        st.caption(
+            "Experimental matching needs calibration. Scores do not establish accurate sample timestamps."
+        )
 
 
 def chart(audio, intervals=(), color="#7950B5"):
@@ -41,10 +78,23 @@ def chart(audio, intervals=(), color="#7950B5"):
             name="Audio",
         )
     )
-    for interval in intervals:
-        fig.add_vrect(
-            x0=interval.new_start, x1=interval.new_end, fillcolor=color, opacity=0.2, line_width=0
-        )
+    fig.update_layout(
+        shapes=[
+            dict(
+                type="rect",
+                x0=interval.new_start,
+                x1=interval.new_end,
+                y0=0,
+                y1=1,
+                xref="x",
+                yref="y domain",
+                fillcolor=color,
+                opacity=0.2,
+                line=dict(width=0),
+            )
+            for interval in intervals
+        ]
+    )
     fig.update_layout(
         height=230,
         xaxis_title="Seconds",
@@ -58,44 +108,99 @@ views = st.tabs(
     ["1 · Intake", "2 · Locate and measure", "3 · Classify and describe", "4 · Review and export"]
 )
 with views[0]:
-    synthetic = st.checkbox("Use a clearly labeled synthetic demonstration", key="demo")
-    use_sampleid = st.checkbox("Include optional SampleID candidate matching", value=False)
-    with st.form("intake"):
-        left, right = st.columns(2)
+    st.subheader("Create a new analysis")
+    st.caption("Provide both recordings and tell us which rights you want to examine.")
+    left, right = st.columns(2, gap="large")
+    with left, st.container(border=True):
+        st.markdown("#### 01 · Original recording")
+        st.caption("The existing work that is being sampled or re-performed.")
+        original_file = st.file_uploader(
+            "Original audio",
+            type=["wav", "flac", "mp3", "m4a", "ogg"],
+            help="MP3, WAV, FLAC, M4A or OGG · up to 100 MB · maximum 10 minutes",
+        )
+        if original_file:
+            st.audio(original_file.getvalue(), format=original_file.type or "audio/mpeg")
+            st.caption(f"{original_file.name} · {original_file.size / 1024 / 1024:.1f} MB")
+    with right, st.container(border=True):
+        st.markdown("#### 02 · New recording")
+        st.caption("The new work that incorporates material from the original.")
+        new_file = st.file_uploader(
+            "New audio",
+            type=["wav", "flac", "mp3", "m4a", "ogg"],
+            help="MP3, WAV, FLAC, M4A or OGG · up to 100 MB · maximum 10 minutes",
+        )
+        if new_file:
+            st.audio(new_file.getvalue(), format=new_file.type or "audio/mpeg")
+            st.caption(f"{new_file.name} · {new_file.size / 1024 / 1024:.1f} MB")
+    if synthetic:
+        st.info("Synthetic demo selected. Generated audio will be used instead of your uploads.")
+    with st.form("intake", border=False):
+        left, right = st.columns(2, gap="large")
         with left:
-            st.subheader("Original recording")
-            original_file = st.file_uploader(
-                "Original audio", type=["wav", "flac", "mp3", "m4a", "ogg"]
-            )
             original_title = st.text_input(
-                "Original title", "Synthetic source" if synthetic else ""
+                "Original title", "Synthetic source" if synthetic else "", placeholder="Song title"
             )
             original_artist = st.text_input(
-                "Original artist", "Generated tones" if synthetic else ""
+                "Original artist",
+                "Generated tones" if synthetic else "",
+                placeholder="Artist or group",
             )
-            original_warning = st.text_input("Original audio-version warning (optional)")
         with right:
-            st.subheader("New recording")
-            new_file = st.file_uploader("New audio", type=["wav", "flac", "mp3", "m4a", "ogg"])
-            new_title = st.text_input("New title", "Synthetic mix" if synthetic else "")
-            new_artist = st.text_input("New artist", "Generated tones" if synthetic else "")
-            new_warning = st.text_input("New audio-version warning (optional)")
-        case_id = st.text_input("Case identifier", "synthetic-demo" if synthetic else "")
-        scope = st.selectbox("Requested analysis", ["Both", "Publishing", "Master"])
-        submitted = st.form_submit_button("Analyze pair", type="primary")
+            new_title = st.text_input(
+                "New title", "Synthetic mix" if synthetic else "", placeholder="Song title"
+            )
+            new_artist = st.text_input(
+                "New artist", "Generated tones" if synthetic else "", placeholder="Artist or group"
+            )
+        st.divider()
+        st.markdown("#### 03 · Requested rights analysis")
+        scope = st.radio(
+            "Requested analysis",
+            ["Both", "Master", "Publishing"],
+            horizontal=True,
+            help="Choose the scope supplied by the requester; this is not a finding about the audio.",
+        )
+        st.caption(
+            "Master: audio from an existing recording. Publishing: melody, harmony or lyrics, including replayed or re-sung material. Both: separate findings for each path."
+        )
+        with st.expander("Case reference and recording versions · optional"):
+            case_id = st.text_input(
+                "Case identifier",
+                "synthetic-demo" if synthetic else "",
+                placeholder="Your internal reference",
+            )
+            original_warning = st.text_input(
+                "Original audio-version warning (optional)",
+                placeholder="For example, radio edit or different mix",
+            )
+            new_warning = st.text_input(
+                "New audio-version warning (optional)",
+                placeholder="For example, unreleased edit or extended intro",
+            )
+        st.caption(
+            "Your recordings are processed in this workspace. Analysis produces an experimental draft that needs expert review."
+        )
+        submitted = st.form_submit_button("Start analysis", type="primary", width="stretch")
     if submitted:
         try:
+            if not synthetic and (not original_file or not new_file):
+                raise ValueError("Add both the original and new recordings to start.")
+            if not all(
+                value.strip() for value in (original_title, original_artist, new_title, new_artist)
+            ):
+                raise ValueError("Enter a title and artist for both recordings.")
             intake = Intake(
                 case_id=case_id.strip() or "local-case",
                 original_work=Work(
-                    title=original_title,
-                    artist=original_artist,
+                    title=original_title.strip(),
+                    artist=original_artist.strip(),
                     audio_file=original_file.name if original_file else None,
                     audio_version_warning=original_warning or None,
                 ),
                 new_work=Work(
-                    title=new_title,
-                    artist=new_artist,
+                    title=new_title.strip(),
+                    artist=new_artist.strip(),
                     audio_file=new_file.name if new_file else None,
                     audio_version_warning=new_warning or None,
                 ),
@@ -150,8 +255,15 @@ with views[0]:
         except (ValueError, RuntimeError, OSError) as exc:
             st.error(str(exc))
     if "analysis" in st.session_state:
-        st.audio(wav_bytes(st.session_state.original_audio), format="audio/wav")
-        st.audio(wav_bytes(st.session_state.new_audio), format="audio/wav")
+        active = st.session_state.analysis
+        st.success(
+            f"Current analysis: {active.input.new_work.title} · Continue to Locate and measure."
+        )
+        with st.expander("Listen to the analyzed recordings"):
+            st.caption("Original recording")
+            st.audio(wav_bytes(st.session_state.original_audio), format="audio/wav")
+            st.caption("New recording")
+            st.audio(wav_bytes(st.session_state.new_audio), format="audio/wav")
 
 result = st.session_state.get("analysis")
 with views[1]:

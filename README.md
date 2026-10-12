@@ -16,7 +16,7 @@ Alternatively, create a virtual environment with `python -m venv .venv`, install
 
 ## Workflow
 
-1. Upload paired recordings, metadata and requested rights scope, or select the synthetic demo.
+1. Start on Intake: upload the original and new recordings, preview each, enter their titles/artists, and choose Master, Publishing or Both. Case/version notes are optional. Demo and experimental matching controls live in the sidebar.
 2. Inspect experimental PF-NMF regions and optional SampleID candidates. Publishing and Master findings remain separate.
 3. Add listening-based timestamps, musical elements, sections, reuse method, repetition and role. Choose a six-class placement and edit the draft.
 4. Save corrections or approve resolved findings. Export JSON/HTML before closing the session.

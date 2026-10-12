@@ -21,6 +21,8 @@ Use repository `tankr98/Lastrada`, branch `feat/lastrada-v0`, entrypoint `app.py
 ## Workflow
 
 1. Start on Intake: upload the original and new recordings, preview each, enter their titles/artists, and choose Master, Publishing or Both. Case/version notes are optional. Demo and experimental matching controls live in the sidebar.
+Use **Next** and **Back** to move through the four steps. Next is enabled after intake analysis finishes, and moving from draft review to export saves corrections without approving them.
+
 2. Inspect experimental PF-NMF regions and optional SampleID candidates. Publishing and Master findings remain separate.
 3. Add listening-based timestamps, musical elements, sections, reuse method, repetition and role. Choose a six-class placement and edit the draft.
 4. Save corrections or approve resolved findings. Export JSON/HTML before closing the session.

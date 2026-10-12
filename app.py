@@ -1,6 +1,7 @@
 """Local reviewer interface. UI state is session-local; exports contain no audio."""
 
 import os
+from copy import deepcopy
 from time import perf_counter
 from pathlib import Path
 import numpy as np
@@ -104,9 +105,31 @@ def chart(audio, intervals=(), color="#7950B5"):
     return fig
 
 
-views = st.tabs(
-    ["1 · Intake", "2 · Locate and measure", "3 · Classify and describe", "4 · Review and export"]
-)
+WORKFLOW_STEPS = [
+    "1 · Intake",
+    "2 · Locate and measure",
+    "3 · Classify and describe",
+    "4 · Review and export",
+]
+
+
+def go_to_step(index):
+    # Callbacks execute before rendering; they can safely update the tab widget.
+    st.session_state.workflow_tab = WORKFLOW_STEPS[index if "analysis" in st.session_state else 0]
+
+
+def validate_step():
+    if "analysis" not in st.session_state:
+        st.session_state.workflow_tab = WORKFLOW_STEPS[0]
+
+
+if "pending_workflow_tab" in st.session_state:
+    st.session_state.workflow_tab = st.session_state.pop("pending_workflow_tab")
+validate_step()
+views = st.tabs(WORKFLOW_STEPS, key="workflow_tab", on_change=validate_step)
+current_step = WORKFLOW_STEPS.index(st.session_state.get("workflow_tab", WORKFLOW_STEPS[0]))
+st.caption(f"Step {current_step + 1} of 4 · {WORKFLOW_STEPS[current_step].split(' · ')[1]}")
+
 with views[0]:
     st.subheader("Create a new analysis")
     st.caption("Provide both recordings and tell us which rights you want to examine.")
@@ -265,6 +288,19 @@ with views[0]:
             st.caption("New recording")
             st.audio(wav_bytes(st.session_state.new_audio), format="audio/wav")
 
+    st.divider()
+    st.button(
+        "Next: Locate and measure →",
+        key="next_intake",
+        type="primary",
+        width="stretch",
+        disabled="analysis" not in st.session_state,
+        on_click=go_to_step,
+        args=(1,),
+    )
+    if "analysis" not in st.session_state:
+        st.caption("Start an analysis above to continue.")
+
 result = st.session_state.get("analysis")
 with views[1]:
     if result is None:
@@ -318,6 +354,19 @@ with views[1]:
                 st.caption(limitation)
         st.json(result.methods)
         st.write("Processing time (seconds)", result.timings_seconds)
+
+    st.divider()
+    back, forward = st.columns(2)
+    back.button("← Back: Intake", key="back_evidence", on_click=go_to_step, args=(0,))
+    forward.button(
+        "Next: Classify and describe →",
+        key="next_evidence",
+        type="primary",
+        width="stretch",
+        disabled=result is None,
+        on_click=go_to_step,
+        args=(2,),
+    )
 
 with views[2]:
     if result is None:
@@ -500,17 +549,39 @@ with views[2]:
         left, right = st.columns(2)
         save = left.button("Save corrections")
         approve = right.button("Approve reviewed draft", type="primary")
-        if save or approve:
+        st.divider()
+        st.caption("Next saves your corrections as a draft. Approval is a separate action.")
+        back, forward = st.columns(2)
+        back.button("← Back: Locate and measure", key="back_draft", on_click=go_to_step, args=(1,))
+        proceed = forward.button(
+            "Next: Review and export →", key="next_draft", type="primary", width="stretch"
+        )
+        if save or approve or proceed:
             try:
                 if len(reviewed_paths) != len(result.input.analysis_scope):
                     raise ValueError("Resolve invalid fields before saving")
-                st.session_state.analysis = reviewed_copy(
+                updated = reviewed_copy(
                     result, reviewed_paths, narrative, reviewer, approve=approve, notes=notes
                 )
+                if proceed and result.review.status == "approved":
+                    previous_payload = deepcopy(result.review.corrected)
+                    updated_payload = deepcopy(updated.review.corrected)
+                    for payload in (previous_payload, updated_payload):
+                        payload["nature_of_use"].pop("review_required", None)
+                    if (
+                        previous_payload == updated_payload
+                        and reviewer == result.review.reviewer
+                        and notes == result.review.notes
+                    ):
+                        updated = result
+                st.session_state.analysis = updated
                 st.success(
                     "Reviewed version saved for this session. Export it in Review and export."
                 )
                 result = st.session_state.analysis
+                if proceed:
+                    st.session_state.pending_workflow_tab = WORKFLOW_STEPS[3]
+                    st.rerun()
             except ValueError as exc:
                 st.error(str(exc))
         with st.expander("Optional local historical references"):
@@ -557,3 +628,6 @@ with views[3]:
         st.download_button(
             "Export HTML report", html_report(result), "lastrada-report.html", "text/html"
         )
+
+    st.divider()
+    st.button("← Back: Classify and describe", key="back_export", on_click=go_to_step, args=(2,))

@@ -134,3 +134,38 @@ def test_next_does_not_revoke_unchanged_approval():
     by_label(app.text_area, "Edit your Nature of Use draft").set_value("Changed synthetic finding.")
     by_label(app.button, "Next: Your Nature of Use →").click().run()
     assert app.session_state["analysis"].review.status == "edited"
+
+
+def test_prefilled_times_require_confirmation_and_loop_answers_fill_only_blanks():
+    app = AppTest.from_file(
+        Path(__file__).resolve().parents[1] / "app.py", default_timeout=30
+    ).run()
+    assert app.session_state["dark_mode"] is True
+    by_label(app.toggle, "Dark mode").set_value(False).run()
+    assert app.session_state["dark_mode"] is False
+    by_label(app.checkbox, "Use a clearly labeled synthetic demonstration").check().run()
+    by_label(app.radio, "Type of reuse").set_value("Master")
+    by_label(app.button, "Find suggested moments").click().run()
+    by_label(app.selectbox, "Have you checked this use?").set_value("verified").run()
+    assert len(app.dataframe[0].value) > 0
+    by_label(app.button, "Next: Your Nature of Use →").click().run()
+    saved = app.session_state["analysis"].review.corrected["master"]["locate"]
+    assert saved["detection_status"] == "candidate"
+    assert saved["sample_detected"] is None
+    assert saved["sample_occurrences"][0]["status"] == "estimated"
+    by_label(app.button, "← Back: Describe your sample").click().run()
+    question = next(r for r in app.radio if "repeating loop?" in r.label)
+    question.set_value("Yes").run()
+    by_label(app.button, "Use this answer to fill the details").click().run()
+    assert (
+        by_label(app.text_input, "Does it loop or repeat?").value
+        == "A short loop repeated in the track"
+    )
+    by_label(app.text_input, "Does it loop or repeat?").set_value("My own loop description").run()
+    by_label(app.button, "Use this answer to fill the details").click().run()
+    assert by_label(app.text_input, "Does it loop or repeat?").value == "My own loop description"
+    by_label(app.checkbox, "I’ve listened and confirmed these times").check().run()
+    by_label(app.button, "Next: Your Nature of Use →").click().run()
+    saved = app.session_state["analysis"].review.corrected["master"]["locate"]
+    assert saved["detection_status"] == "verified"
+    assert saved["sample_occurrences"][0]["source"] == "expert_review"

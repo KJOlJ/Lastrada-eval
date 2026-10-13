@@ -1,8 +1,9 @@
 [theme]
-primaryColor = "#7950B5"
-backgroundColor = "#FAF8FE"
-secondaryBackgroundColor = "#EEE8F6"
-textColor = "#271D36"
+base = "dark"
+primaryColor = "#6EA8FF"
+backgroundColor = "#091426"
+secondaryBackgroundColor = "#14243B"
+textColor = "#F5F8FF"
 [server]
 headless = true
 maxUploadSize = 100

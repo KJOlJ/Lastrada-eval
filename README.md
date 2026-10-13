@@ -20,6 +20,11 @@ Use repository `tankr98/Lastrada`, branch `feat/lastrada-v0`, entrypoint `app.py
 
 ## A four-step creator workflow
 
+The workspace opens in navy dark mode with a light-mode toggle, progress at the top and a compact collapsible sidebar. Estimated master-analysis times are carried into an editable table. Confirmed existing review times are preserved, and publishing never inherits master measurement intervals.
+
+Timing patterns prompt questions about use throughout the track, melody and short loops. Only a creator-confirmed answer fills musical details, and existing edits are preserved. Estimated times require a separate listening confirmation. The form is split into times, sound and song sections/changes.
+
+
 1. **Add your tracks:** upload the original and your new track, enter both titles/artists, and choose whether you sampled the recording, replayed/re-sang the music, or need both paths checked.
 2. **Listen & explore:** compare playback and suggested moments. Estimated audio overlap is a listening aid, not confirmed sample coverage. Technical details are tucked away.
 3. **Describe your sample:** identify the sound or musical part, enter its appearances in your track, name sections, explain how you used it, repetition and its role. Generate and edit the Nature of Use draft. Optional original timestamps, lyrics and pitch details are retained when known.

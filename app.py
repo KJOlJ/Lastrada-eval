@@ -25,95 +25,16 @@ from lastrada.classification.placement import classify
 from lastrada.recognition.sampleid_adapter import SampleIDAdapter, SampleIDUnavailable
 from lastrada.ingestion.dataset import load_dataset, retrieve_examples
 from lastrada.config import load_settings
+from lastrada.reporting.suggestions import suggested_intervals, timing_questions, confirmed_prefills
 
 settings = load_settings()
 
-st.set_page_config(page_title="Lastrada · Nature of Use", page_icon="🎵", layout="wide")
-st.markdown(
-    """
-<style>
-.stApp {background:#f8f7fb;}
-.block-container {max-width:1200px;padding-top:2.5rem;}
-h1,h2,h3 {letter-spacing:-.035em;}
-[data-testid="stSidebar"] {background:#efebf6;border-right:1px solid #e0d9ec;}
-[data-testid="stVerticalBlockBorderWrapper"] {border-radius:18px;}
-[data-testid="stFileUploader"] {border-radius:14px;}
-[data-baseweb="tab-list"] {gap:24px;margin-bottom:24px;border-bottom:1px solid #e3ddea;}
-[data-baseweb="tab"] {padding:14px 0;font-weight:600;}
-.stButton>button,.stFormSubmitButton>button {border-radius:10px;min-height:44px;}
-.eyebrow {color:#7950b5;font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;}
-.hero {margin:0 0 24px;}
-.hero h1 {font-size:42px;line-height:1.12;margin:8px 0 12px;}
-.hero p {color:#746b80;font-size:17px;max-width:670px;line-height:1.6;}
-</style>
-<div class="hero"><div class="eyebrow">Lastrada / Nature of Use</div>
-<h1>Your sample. Its story.</h1>
-<p>Turn the sample in your track into a clear Nature of Use document. Add two tracks, check the suggested moments, describe your creative choices, and finish your draft.</p></div>
-""",
-    unsafe_allow_html=True,
+st.set_page_config(
+    page_title="Lastrada · Nature of Use",
+    page_icon="🎵",
+    layout="wide",
+    initial_sidebar_state="collapsed",
 )
-with st.sidebar:
-    st.markdown("### Lastrada")
-    st.caption("NATURE OF USE WORKSPACE")
-    st.divider()
-    st.markdown("**01 · Add your tracks**")
-    st.caption(
-        "Upload the source track and your new track. Add titles, artists and the kind of reuse."
-    )
-    st.markdown("**02 · Listen & explore**")
-    st.caption(
-        "Hear both tracks and check suggested sample moments. Nothing is confirmed until you check it."
-    )
-    st.markdown("**03 · Describe your sample**")
-    st.caption("Tell us what you took, where it appears and how it works in your track.")
-    st.markdown("**04 · Your Nature of Use**")
-    st.caption("Review the description and download your Nature of Use document.")
-    st.divider()
-    st.caption("Made for creators · Review before sharing")
-    with st.expander("Demo and advanced options"):
-        synthetic = st.checkbox("Use a clearly labeled synthetic demonstration", key="demo")
-        use_sampleid = st.checkbox("Include optional SampleID candidate matching", value=False)
-        st.caption(
-            "Experimental matching needs calibration. Scores do not establish accurate sample timestamps."
-        )
-
-
-def chart(audio, intervals=(), color="#7950B5"):
-    step = max(1, len(audio.samples) // 3000)
-    fig = go.Figure(
-        go.Scatter(
-            x=np.arange(0, len(audio.samples), step) / audio.sample_rate,
-            y=audio.samples[::step],
-            line={"color": color, "width": 1},
-            name="Audio",
-        )
-    )
-    fig.update_layout(
-        shapes=[
-            dict(
-                type="rect",
-                x0=interval.new_start,
-                x1=interval.new_end,
-                y0=0,
-                y1=1,
-                xref="x",
-                yref="y domain",
-                fillcolor=color,
-                opacity=0.2,
-                line=dict(width=0),
-            )
-            for interval in intervals
-        ]
-    )
-    fig.update_layout(
-        height=230,
-        xaxis_title="Seconds",
-        yaxis_title="Amplitude",
-        margin={"l": 20, "r": 20, "t": 10, "b": 30},
-    )
-    return fig
-
-
 WORKFLOW_STEPS = [
     "1 · Add your tracks",
     "2 · Listen & explore",
@@ -148,12 +69,143 @@ if st.session_state.get("workflow_tab") not in WORKFLOW_STEPS:
         legacy_steps.index(previous) if previous in legacy_steps else 0
     ]
 validate_step()
-views = st.tabs(WORKFLOW_STEPS, key="workflow_tab", on_change=validate_step)
+
+brand, appearance = st.columns([5, 1])
+brand.caption("LASTRADA · NATURE OF USE")
+with appearance:
+    dark_mode = st.toggle("Dark mode", value=True, key="dark_mode")
 current_step = WORKFLOW_STEPS.index(st.session_state.get("workflow_tab", WORKFLOW_STEPS[0]))
 st.progress(
     (current_step + 1) / 4,
-    text=f"Step {current_step + 1} of 4 · {WORKFLOW_STEPS[current_step].split(' · ')[1]}",
+    text=f"STEP {current_step + 1} OF 4 · {WORKFLOW_STEPS[current_step].split(' · ')[1]}",
 )
+palette = (
+    dict(
+        bg="#091426",
+        surface="#14243b",
+        field="#1b2e49",
+        text="#f5f8ff",
+        muted="#b9c7db",
+        border="#334963",
+    )
+    if dark_mode
+    else dict(
+        bg="#f7f9fc",
+        surface="#ffffff",
+        field="#edf2f8",
+        text="#14243b",
+        muted="#52647a",
+        border="#d5dfeb",
+    )
+)
+st.markdown(
+    f"""
+<style>
+.stApp,[data-testid="stHeader"] {{background:{palette["bg"]};color:{palette["text"]};}}
+.block-container {{max-width:1180px;padding-top:4rem;}}
+h1,h2,h3,h4 {{letter-spacing:-.035em;color:{palette["text"]} !important;}}
+[data-testid="stSidebar"] {{background:{palette["surface"]};border:0;}}
+[data-testid="stSidebar"][aria-expanded="true"] {{width:230px !important;min-width:230px !important;max-width:230px !important;}}
+[data-testid="stSidebar"][aria-expanded="false"] {{width:0 !important;min-width:0 !important;max-width:0 !important;}}
+[data-testid="stHeader"] button {{color:{palette["text"]} !important;}}
+.stCaption,.stCaption p,[data-testid="stCaption"] p,small {{color:{palette["muted"]} !important;}}
+[data-testid="stFileUploaderDropzone"] small {{color:{palette["muted"]} !important;}}
+[data-testid="stAlert"] {{background:{palette["surface"]};color:{palette["text"]};border:1px solid {palette["border"]};}}
+[data-testid="stSidebar"] p {{font-size:.9rem;}}
+[data-testid="stMarkdownContainer"], [data-testid="stWidgetLabel"],label {{color:{palette["text"]} !important;}}
+[data-testid="stCaptionContainer"] p {{color:{palette["muted"]} !important;}}
+[data-testid="stVerticalBlockBorderWrapper"]>div {{border-color:{palette["border"]} !important;border-radius:16px;}}
+[data-testid="stFileUploaderDropzone"],input,textarea,[data-baseweb="select"]>div {{background:{palette["field"]} !important;color:{palette["text"]} !important;border-color:{palette["border"]} !important;}}
+input::placeholder,textarea::placeholder {{color:{palette["muted"]} !important;}}
+[data-baseweb="popover"],[role="listbox"],[role="option"] {{background:{palette["surface"]} !important;color:{palette["text"]} !important;}}
+[data-testid="stExpander"] details {{background:{palette["surface"]};border-color:{palette["border"]};}}
+[data-baseweb="tab-list"] {{gap:20px;margin-bottom:20px;border-bottom:1px solid {palette["border"]};}}
+[data-baseweb="tab"] {{color:{palette["muted"]};font-weight:700;}}
+[data-baseweb="tab"][aria-selected="true"] {{color:{palette["text"]};}}
+button {{border-radius:10px !important;}}
+button[kind="primary"],button[kind="primaryFormSubmit"] {{background:#dceaff !important;color:#091426 !important;font-weight:700;border-color:#dceaff;}}
+[data-testid="stBaseButton-secondary"] {{background:{palette["surface"]};color:{palette["text"]};border-color:{palette["border"]};}}
+.hero h1 {{font-size:42px;line-height:1.1;margin:22px 0 10px;}}
+.hero p {{color:{palette["muted"]};font-size:17px;max-width:680px;line-height:1.6;}}
+.st-key-nature_document {{background:#fff;color:#14243b;border-radius:16px;}}
+.st-key-nature_document h3,.st-key-nature_document p,.st-key-nature_document [data-testid="stMarkdownContainer"] {{color:#14243b !important;}}
+.st-key-nature_document [data-testid="stCaptionContainer"] p {{color:#52647a !important;}}
+</style>
+<div class="hero"><h1>Your sample. Your document.</h1>
+<p>Upload two tracks. Check the sample. Tell us how you used it. Download your Nature of Use.</p></div>
+""",
+    unsafe_allow_html=True,
+)
+with st.sidebar:
+    st.markdown("### Lastrada")
+    st.caption("NATURE OF USE WORKSPACE")
+    st.divider()
+    st.markdown("**01 · Add your tracks**")
+    st.caption("Original track. Your track. Titles and artists.")
+    st.markdown("**02 · Listen & explore**")
+    st.caption("Listen to both tracks. Check the suggested times.")
+    st.markdown("**03 · Describe your sample**")
+    st.caption("Confirm the times. Tell us about the sound.")
+    st.markdown("**04 · Your Nature of Use**")
+    st.caption("Review the description and download your Nature of Use document.")
+    st.divider()
+    st.caption("Made for creators · Review before sharing")
+    with st.expander("Demo and advanced options"):
+        synthetic = st.checkbox("Use a clearly labeled synthetic demonstration", key="demo")
+        use_sampleid = st.checkbox("Include optional SampleID candidate matching", value=False)
+        st.caption(
+            "Experimental matching needs calibration. Scores do not establish accurate sample timestamps."
+        )
+
+
+def apply_suggestion(rights, kind):
+    prefix = f"review_{rights}_"
+    for field, value in confirmed_prefills(kind, rights).items():
+        existing = st.session_state.get(prefix + field)
+        if existing in (None, "", "Needs review"):
+            st.session_state[prefix + field] = value
+
+
+def chart(audio, intervals=(), color="#7950B5"):
+    step = max(1, len(audio.samples) // 3000)
+    fig = go.Figure(
+        go.Scatter(
+            x=np.arange(0, len(audio.samples), step) / audio.sample_rate,
+            y=audio.samples[::step],
+            line={"color": color, "width": 1},
+            name="Audio",
+        )
+    )
+    fig.update_layout(
+        shapes=[
+            dict(
+                type="rect",
+                x0=interval.new_start,
+                x1=interval.new_end,
+                y0=0,
+                y1=1,
+                xref="x",
+                yref="y domain",
+                fillcolor=color,
+                opacity=0.2,
+                line=dict(width=0),
+            )
+            for interval in intervals
+        ]
+    )
+    fig.update_layout(
+        height=230,
+        xaxis_title="Seconds",
+        yaxis_title="Amplitude",
+        margin={"l": 20, "r": 20, "t": 10, "b": 30},
+        template="plotly_dark" if dark_mode else "plotly_white",
+        paper_bgcolor=palette["bg"],
+        plot_bgcolor=palette["surface"],
+    )
+    return fig
+
+
+views = st.tabs(WORKFLOW_STEPS, key="workflow_tab", on_change=validate_step)
 
 with views[0]:
     st.subheader("Step 1 · Add your tracks")
@@ -454,10 +506,12 @@ with views[2]:
         reviewed_paths = {}
         for rights in result.input.analysis_scope:
             path = getattr(result, rights).model_copy(deep=True)
-            with st.expander(
-                "Your recording sample" if rights == "master" else "Your replayed melody / lyrics",
-                expanded=True,
-            ):
+            with st.container(border=True):
+                st.subheader(
+                    "Your recording sample"
+                    if rights == "master"
+                    else "Your replayed melody / lyrics"
+                )
                 key = f"review_{rights}_"
                 status = st.selectbox(
                     "Have you checked this use?",
@@ -481,92 +535,144 @@ with views[2]:
                 st.caption(
                     "Choose ‘I’ve confirmed this use’ only after listening. Similarity scores cannot confirm a sample for you."
                 )
-                st.markdown(
-                    "**Where can we hear it?** Add a row for each appearance in your track. Enter seconds (1:15 = 75). Original-track times are optional when you haven’t located them yet."
-                )
-                rows = [
-                    {
-                        "new_start": i.new_start,
-                        "new_end": i.new_end,
-                        "original_start": i.original_start,
-                        "original_end": i.original_end,
-                    }
-                    for i in path.locate.sample_occurrences
-                ]
-                intervals = st.data_editor(
-                    pd.DataFrame(
-                        rows, columns=["new_start", "new_end", "original_start", "original_end"]
-                    ),
-                    num_rows="dynamic",
-                    key=key + "intervals",
-                    column_config={
-                        c: st.column_config.NumberColumn(
-                            {
-                                "new_start": "Your track · start (s)",
-                                "new_end": "Your track · end (s)",
-                                "original_start": "Original · start (s)",
-                                "original_end": "Original · end (s)",
-                            }[c],
-                            min_value=0.0,
-                            step=0.01,
+                with st.expander("1 · Check the times", expanded=True):
+                    st.markdown(
+                        "**Where can we hear it?** Add a row for each appearance in your track. Enter seconds (1:15 = 75). Original-track times are optional when you haven’t located them yet."
+                    )
+                    if key + "seed_intervals" not in st.session_state:
+                        st.session_state[key + "seed_intervals"] = suggested_intervals(
+                            result, rights
                         )
-                        for c in ["new_start", "new_end", "original_start", "original_end"]
-                    },
-                )
-                element = st.text_input(
-                    "What did you take?",
-                    placeholder="For example: a vocal phrase, drum break or guitar melody",
-                    key=key + "element",
-                )
-                lyrics = st.text_input("Any reused lyrics? (optional)", key=key + "lyrics")
-                reuse_type = st.text_input(
-                    "How did you use it?",
-                    key=key + "method",
-                    placeholder="For example: chopped the original recording, replayed the melody",
-                )
-                repetition = st.text_input(
-                    "Does it loop or repeat?",
-                    placeholder="For example: a four-bar loop under each verse",
-                    key=key + "repetition",
-                )
-                role = st.text_input(
-                    "What does it do in your track?",
-                    placeholder="For example: the main hook, or a texture under new vocals",
-                    key=key + "role",
-                )
-                pitch = st.number_input(
-                    "Did you pitch it up or down? (semitones, optional)",
-                    value=0.0,
-                    key=key + "pitch",
-                )
-                pitch_known = st.checkbox(
-                    "I know this pitch change is correct", key=key + "pitch_known"
-                )
-                sections = st.multiselect(
-                    "Which sections of your track?",
-                    ["intro", "verse", "chorus", "bridge", "outro"],
-                    key=key + "sections",
-                )
-                placement = st.selectbox(
-                    "Where does it appear overall?",
-                    ["Needs review"] + PLACEMENT_CLASSES,
-                    key=key + "placement",
-                    format_func=lambda x: {
-                        "Needs review": "Still deciding",
-                        "throughout": "Throughout the track",
-                        "intro_outro_with_chorus": "Intro / outro and chorus",
-                        "chorus_only": "Choruses only",
-                        "intro_outro_without_chorus": "Intro / outro, outside the chorus",
-                        "verses": "Verses",
-                        "one_time": "One appearance",
-                    }[x],
-                )
-                confirmed = st.checkbox(
-                    "I’ve listened and checked these details", key=key + "checked"
-                )
+                    seeds = st.session_state[key + "seed_intervals"]
+                    if seeds:
+                        st.caption(
+                            "Estimated times are filled in below. Listen, edit or delete them. They are not confirmed sample times."
+                        )
+                    rows = [
+                        {
+                            "new_start": i.new_start,
+                            "new_end": i.new_end,
+                            "original_start": i.original_start,
+                            "original_end": i.original_end,
+                        }
+                        for i in seeds
+                    ]
+                    intervals = st.data_editor(
+                        pd.DataFrame(
+                            rows, columns=["new_start", "new_end", "original_start", "original_end"]
+                        ),
+                        num_rows="dynamic",
+                        disabled=status == "not_detected",
+                        key=key + "intervals",
+                        column_config={
+                            c: st.column_config.NumberColumn(
+                                {
+                                    "new_start": "Your track · start (s)",
+                                    "new_end": "Your track · end (s)",
+                                    "original_start": "Original · start (s)",
+                                    "original_end": "Original · end (s)",
+                                }[c],
+                                min_value=0.0,
+                                step=0.01,
+                            )
+                            for c in ["new_start", "new_end", "original_start", "original_end"]
+                        },
+                    )
+                    times_confirmed = st.checkbox(
+                        "I’ve listened and confirmed these times", key=key + "times_confirmed"
+                    )
+                    if status == "not_detected":
+                        st.caption(
+                            "No-use finding selected. Estimated times will not be included as sample use."
+                        )
+                    try:
+                        current_times = [
+                            Interval(
+                                new_start=r["new_start"],
+                                new_end=r["new_end"],
+                                source="timing_question",
+                            )
+                            for r in intervals.to_dict("records")
+                            if not pd.isna(r["new_start"]) and not pd.isna(r["new_end"])
+                        ]
+                        questions = timing_questions(current_times, result.durations["new"])
+                    except ValueError:
+                        questions = []
+                    for suggestion in questions if status != "not_detected" else []:
+                        answer = st.radio(
+                            suggestion.question,
+                            ["Not sure", "Yes", "No"],
+                            horizontal=True,
+                            key=key + "suggestion_" + suggestion.kind,
+                        )
+                        if answer == "Yes":
+                            st.button(
+                                "Use this answer to fill the details",
+                                key=key + "apply_" + suggestion.kind,
+                                on_click=apply_suggestion,
+                                args=(rights, suggestion.kind),
+                            )
+                    st.caption(
+                        "A timing pattern cannot identify a melody or prove a loop. Suggestions are added only when you say yes."
+                    )
+                with st.expander("2 · Describe the sound", expanded=times_confirmed):
+                    element = st.text_input(
+                        "What did you take?",
+                        placeholder="For example: a vocal phrase, drum break or guitar melody",
+                        key=key + "element",
+                    )
+                    lyrics = st.text_input("Any reused lyrics? (optional)", key=key + "lyrics")
+                    reuse_type = st.text_input(
+                        "How did you use it?",
+                        key=key + "method",
+                        placeholder="For example: chopped the original recording, replayed the melody",
+                    )
+                    repetition = st.text_input(
+                        "Does it loop or repeat?",
+                        placeholder="For example: a four-bar loop under each verse",
+                        key=key + "repetition",
+                    )
+                    role = st.text_input(
+                        "What does it do in your track?",
+                        placeholder="For example: the main hook, or a texture under new vocals",
+                        key=key + "role",
+                    )
+                with st.expander("3 · Add sections and changes", expanded=False):
+                    pitch = st.number_input(
+                        "Did you pitch it up or down? (semitones, optional)",
+                        value=0.0,
+                        key=key + "pitch",
+                    )
+                    pitch_known = st.checkbox(
+                        "I know this pitch change is correct", key=key + "pitch_known"
+                    )
+                    sections = st.multiselect(
+                        "Which sections of your track?",
+                        ["intro", "verse", "chorus", "bridge", "outro"],
+                        key=key + "sections",
+                    )
+                    placement = st.selectbox(
+                        "Where does it appear overall?",
+                        ["Needs review"] + PLACEMENT_CLASSES,
+                        key=key + "placement",
+                        format_func=lambda x: {
+                            "Needs review": "Still deciding",
+                            "throughout": "Throughout the track",
+                            "intro_outro_with_chorus": "Intro / outro and chorus",
+                            "chorus_only": "Choruses only",
+                            "intro_outro_without_chorus": "Intro / outro, outside the chorus",
+                            "verses": "Verses",
+                            "one_time": "One appearance",
+                        }[x],
+                    )
+                    confirmed = st.checkbox(
+                        "I’ve listened and checked these details", key=key + "checked"
+                    )
                 try:
                     occurrences = []
                     for row in intervals.to_dict("records"):
+                        if status == "not_detected":
+                            continue
                         if pd.isna(row["new_start"]) and pd.isna(row["new_end"]):
                             continue
                         occurrences.append(
@@ -579,22 +685,29 @@ with views[2]:
                                 original_end=None
                                 if pd.isna(row["original_end"])
                                 else row["original_end"],
-                                source="expert_review",
-                                status="expert_verified",
+                                source="expert_review"
+                                if times_confirmed
+                                else "unconfirmed_timing_suggestion",
+                                status="expert_verified" if times_confirmed else "estimated",
                             )
                         )
                     path.locate.sample_occurrences = occurrences
-                    path.locate.detection_status = status
+                    effective_status = (
+                        "candidate"
+                        if status == "verified" and not times_confirmed and occurrences
+                        else status
+                    )
+                    path.locate.detection_status = effective_status
                     path.locate.sample_detected = (
                         True
-                        if status == "verified"
+                        if effective_status == "verified"
                         else False
                         if status == "not_detected"
                         else None
                     )
                     path.locate.pitch_shift_semitones = pitch if pitch_known else None
                     path.locate.review_required = not confirmed
-                    if occurrences and status == "verified":
+                    if occurrences and effective_status == "verified":
                         sec, pct = coverage(occurrences, result.durations["new"])
                         path.locate.total_covered_seconds, path.locate.coverage_percentage = (
                             sec,
@@ -759,7 +872,7 @@ with views[3]:
         else:
             st.success("Reviewed Nature of Use · ready to download")
         source = result.review.corrected or result.model_dump(mode="json")
-        with st.container(border=True):
+        with st.container(border=True, key="nature_document"):
             st.caption(
                 "NATURE OF USE · " + ("REVIEWED" if result.review.status == "approved" else "DRAFT")
             )

@@ -46,8 +46,42 @@ WORKFLOW_STEPS = [
 ]
 
 
+def new_sample():
+    # Restart case data, including upload widget IDs, while preserving appearance.
+    dark = st.session_state.get("dark_mode", True)
+    st.session_state.clear()
+    st.session_state.dark_mode = dark
+
+
+def start_sample():
+    st.session_state.started = True
+
+
+def prepare_preview(original_file, new_file, synthetic):
+    if synthetic:
+        original, new, _ = demo_pair()
+    else:
+        original, new = decode(original_file.getvalue()), decode(new_file.getvalue())
+    intake = Intake(
+        case_id="preview",
+        original_work=Work(title="Original", artist="Unknown"),
+        new_work=Work(title="New track", artist="Unknown"),
+        analysis_scope=["master"],
+    )
+    return analyze_pair(intake, original, new, synthetic=synthetic, settings=settings)
+
+
 def go_to_step(index):
-    # Callbacks execute before rendering; they can safely update the tab widget.
+    # Enforce prerequisites in callbacks as well as disabled navigation buttons.
+    current = WORKFLOW_STEPS.index(st.session_state.get("workflow_tab", WORKFLOW_STEPS[0]))
+    if index > current and index >= 3:
+        if any(
+            st.session_state.get("step_errors", {}).get(stage, [])
+            for stage in range(2, min(index, 5))
+        ):
+            return
+    if index == 6 and not st.session_state.get("document_ready", False):
+        return
     st.session_state.workflow_tab = WORKFLOW_STEPS[
         index if "analysis" in st.session_state or index <= 1 else 0
     ]
@@ -78,15 +112,17 @@ if st.session_state.get("workflow_tab") not in WORKFLOW_STEPS:
     ]
 validate_step()
 
-brand, appearance = st.columns([5, 1])
+brand, restart, appearance = st.columns([4, 1.4, 1.3])
+restart.button("New Sample", on_click=new_sample, key="new_sample")
 brand.caption("LASTRADA · NATURE OF USE")
 with appearance:
     dark_mode = st.toggle("Dark mode", value=True, key="dark_mode")
 current_step = WORKFLOW_STEPS.index(st.session_state.get("workflow_tab", WORKFLOW_STEPS[0]))
-st.progress(
-    (current_step + 1) / 7,
-    text=f"STEP {current_step + 1} OF 7 · {WORKFLOW_STEPS[current_step].split(' · ')[1]}",
-)
+if st.session_state.get("started"):
+    st.progress(
+        (current_step + 1) / 7,
+        text=f"STEP {current_step + 1} OF 7 · {WORKFLOW_STEPS[current_step].split(' · ')[1]}",
+    )
 palette = (
     dict(
         bg="#091426",
@@ -151,6 +187,25 @@ button:disabled {{opacity:.55;}}
 """,
     unsafe_allow_html=True,
 )
+if not st.session_state.get("started"):
+    st.markdown(
+        """<style>.st-key-landing {text-align:center;padding:12vh 0 6vh;}
+    .st-key-landing h1 {font-size:clamp(36px,5vw,64px);text-align:center;}
+    .st-key-landing [data-testid="stMarkdownContainer"] {text-align:center;}
+    .st-key-landing [data-testid="stButton"] {display:flex;justify-content:center;}
+    .st-key-landing button {min-width:220px;min-height:58px;font-size:20px;}</style>""",
+        unsafe_allow_html=True,
+    )
+    with st.container(key="landing"):
+        st.title("Your Music, Your Time.")
+        st.write(
+            "Upload your tracks, check where your sample appears, and create your Nature of Use document."
+        )
+        _, center, _ = st.columns([1, 1, 1])
+        with center:
+            st.button("Start", type="primary", on_click=start_sample, width="stretch")
+    st.stop()
+
 with st.sidebar:
     st.markdown("### Lastrada")
     st.caption("NATURE OF USE WORKSPACE")
@@ -165,6 +220,16 @@ with st.sidebar:
         st.caption(
             "Experimental matching needs calibration. Scores do not establish accurate sample timestamps."
         )
+
+
+def accept_times(rights):
+    prefix = f"review_{rights}_"
+    if st.session_state.get(prefix + "agreement") == "Yes, use these times":
+        st.session_state[prefix + "status"] = "verified"
+    else:
+        st.session_state[prefix + "times_confirmed"] = False
+        if st.session_state.get(prefix + "status") == "verified":
+            st.session_state[prefix + "status"] = "candidate"
 
 
 def apply_suggestion(rights, kind):
@@ -273,17 +338,37 @@ with views[0]:
             st.info(
                 "Synthetic demo selected. Generated audio will be used instead of your uploads."
             )
-        st.button(
+        if st.button(
             "Next: Track details →",
             key="next_uploads",
             type="primary",
             disabled=not synthetic and (not original_file or not new_file),
-            on_click=go_to_step,
-            args=(1,),
-        )
+        ):
+            try:
+                with st.spinner("Finding suggested moments…"):
+                    st.session_state.preview_analysis = prepare_preview(
+                        original_file, new_file, synthetic
+                    )
+                st.session_state.pending_workflow_tab = WORKFLOW_STEPS[1]
+                st.rerun()
+            except (ValueError, RuntimeError, OSError) as exc:
+                st.error(str(exc))
     with st.container(key="stage_1"):
         st.subheader("Name the tracks")
         st.caption("These credits will appear in your document.")
+        preview = st.session_state.get("preview_analysis")
+        if preview:
+            if preview.master.locate.measurement_intervals:
+                st.write(
+                    "We found similar recorded sound at suggested moments. A recording sample involves master rights; replaying or re-singing the music involves publishing rights."
+                )
+            else:
+                st.write(
+                    "We didn’t find clear sound overlap. This does not rule out a recording sample or replayed music."
+                )
+            st.caption(
+                "PF-NMF compares sound patterns; it cannot decide which rights apply. Tell us how you created the sample below."
+            )
         with st.form("intake", border=False):
             left, right = st.columns(2, gap="large")
             with left:
@@ -573,18 +658,25 @@ with views[2]:
                     )
                 with st.container(key=f"stage_2_{rights}_times"):
                     st.markdown("### Check the moments")
-                    st.markdown(
-                        "**Where can we hear it?** Add a row for each appearance in your track. Enter seconds (1:15 = 75). Original-track times are optional when you haven’t located them yet."
+                    st.caption(
+                        "Suggested moments carry straight into your document when you accept them. Listen first; you only need to edit if they are wrong."
                     )
                     if key + "seed_intervals" not in st.session_state:
                         st.session_state[key + "seed_intervals"] = suggested_intervals(
                             result, rights
                         )
                     seeds = st.session_state[key + "seed_intervals"]
-                    if seeds:
-                        st.caption(
-                            "Estimated times are filled in below. Listen, edit or delete them. They are not confirmed sample times."
-                        )
+                    agreement = st.radio(
+                        "Do these times match the sample you hear?"
+                        if seeds
+                        else "Add the times you hear — no times were found for this use.",
+                        ["Not checked", "Yes, use these times", "No, let me edit"],
+                        key=key + "agreement",
+                        horizontal=True,
+                        on_change=accept_times,
+                        args=(rights,),
+                    )
+                    editable = agreement == "No, let me edit"
                     rows = [
                         {
                             "new_start": i.new_start,
@@ -599,7 +691,7 @@ with views[2]:
                             rows, columns=["new_start", "new_end", "original_start", "original_end"]
                         ),
                         num_rows="dynamic",
-                        disabled=status == "not_detected",
+                        disabled=status == "not_detected" or not editable,
                         key=key + "intervals",
                         column_config={
                             c: st.column_config.NumberColumn(
@@ -615,8 +707,19 @@ with views[2]:
                             for c in ["new_start", "new_end", "original_start", "original_end"]
                         },
                     )
-                    times_confirmed = st.checkbox(
-                        "I’ve listened and confirmed these times", key=key + "times_confirmed"
+                    with st.container(key=key + "manual_confirmation"):
+                        manual_confirmed = st.checkbox(
+                            "I’ve listened and confirmed these times",
+                            key=key + "times_confirmed",
+                            disabled=not editable,
+                        )
+                    if not editable:
+                        st.markdown(
+                            f"<style>.st-key-{key}manual_confirmation {{display:none;}}</style>",
+                            unsafe_allow_html=True,
+                        )
+                    times_confirmed = (agreement == "Yes, use these times" and bool(seeds)) or (
+                        editable and manual_confirmed
                     )
                     if status == "not_detected":
                         st.caption(
@@ -716,6 +819,13 @@ with views[2]:
                             continue
                         if pd.isna(row["new_start"]) and pd.isna(row["new_end"]):
                             continue
+                        if row["new_end"] > result.durations["new"]:
+                            raise ValueError("A sample time extends beyond your track")
+                        if (
+                            not pd.isna(row["original_end"])
+                            and row["original_end"] > result.durations["original"]
+                        ):
+                            raise ValueError("A source time extends beyond the original track")
                         occurrences.append(
                             Interval(
                                 new_start=row["new_start"],
@@ -799,10 +909,47 @@ with views[2]:
             from lastrada.schemas.models import PathResult
 
             setattr(candidate, rights, PathResult.model_validate(value))
+        candidate.review.corrected = None
+        remaining = missing_document_inputs(candidate)
+        step_errors = {2: [], 3: [], 4: []}
+        for rights in result.input.analysis_scope:
+            prefix = f"review_{rights}_"
+            item = reviewed_paths.get(rights)
+            if item is None:
+                step_errors[2].append(f"{rights}: fix invalid timestamps")
+                continue
+            if item["locate"]["detection_status"] == "not_detected":
+                if not st.session_state.get(prefix + "checked"):
+                    step_errors[4].append(f"{rights}: confirm the no-use finding")
+                continue
+            if (
+                item["locate"]["detection_status"] != "verified"
+                or not item["locate"]["sample_occurrences"]
+                or not all(
+                    i["status"] == "expert_verified" for i in item["locate"]["sample_occurrences"]
+                )
+            ):
+                step_errors[2].append(f"{rights}: confirm the use and accept or correct its times")
+            for field, label in [
+                ("element", "what you used"),
+                ("method", "how you used it"),
+                ("repetition", "how it repeats"),
+                ("role", "its musical role"),
+            ]:
+                if not str(st.session_state.get(prefix + field, "")).strip():
+                    step_errors[3].append(f"{rights}: describe {label}")
+            if (
+                not st.session_state.get(prefix + "sections")
+                or st.session_state.get(prefix + "placement") == "Needs review"
+                or not st.session_state.get(prefix + "checked")
+            ):
+                step_errors[4].append(
+                    f"{rights}: choose sections and placement, then confirm the details"
+                )
+        st.session_state.step_errors = step_errors
         with st.container(key="stage_5"):
             st.subheader("Make it yours")
             st.caption("Read the draft, make any edits, and add your name.")
-            remaining = missing_document_inputs(candidate)
             if remaining:
                 with st.expander(f"What’s still needed? · {len(remaining)} details"):
                     for item in remaining:
@@ -812,7 +959,11 @@ with views[2]:
                     "Your musical details are complete. Generate the draft and give it a final read."
                 )
             generated = creator_narrative(candidate)
-            if st.button("Generate Nature of Use draft", type="primary"):
+            if st.button(
+                "Generate Nature of Use draft",
+                type="primary",
+                disabled=bool(remaining) or any(step_errors.values()),
+            ):
                 st.session_state.review_narrative = generated
                 st.session_state.review_generated_text = generated
             narrative = st.text_area(
@@ -836,8 +987,22 @@ with views[2]:
             back.button(
                 "← Back: Place the sample", key="back_draft", on_click=go_to_step, args=(4,)
             )
+            st.session_state.document_ready = (
+                not remaining
+                and not any(step_errors.values())
+                and bool(reviewer.strip())
+                and bool(narrative.strip())
+            )
+            if not st.session_state.document_ready:
+                st.caption(
+                    "Complete the listening checks and musical details, then add your name to continue."
+                )
             proceed = forward.button(
-                "Next: Your Nature of Use →", key="next_draft", type="primary", width="content"
+                "Next: Your Nature of Use →",
+                key="next_draft",
+                type="primary",
+                width="content",
+                disabled=not st.session_state.document_ready,
             )
             if save or approve or proceed:
                 try:
@@ -851,7 +1016,7 @@ with views[2]:
                     updated = reviewed_copy(
                         result, reviewed_paths, narrative, reviewer, approve=approve, notes=notes
                     )
-                    if approve and missing_document_inputs(updated):
+                    if (approve or proceed) and missing_document_inputs(updated):
                         raise ValueError(
                             "Complete the musical details before marking this document as reviewed: "
                             + "; ".join(missing_document_inputs(updated))
@@ -969,6 +1134,13 @@ for index, next_label in [
     (4, "Review your draft"),
 ]:
     with st.container(key=f"stage_{index}_navigation"):
+        errors = [
+            error
+            for stage in range(2, index + 1)
+            for error in st.session_state.get("step_errors", {}).get(stage, [])
+        ]
+        if errors:
+            st.caption("Before you continue: " + "; ".join(errors))
         st.divider()
         back, forward = st.columns([1, 2])
         back.button("← Back", key=f"wizard_back_{index}", on_click=go_to_step, args=(index - 1,))
@@ -976,7 +1148,11 @@ for index, next_label in [
             f"Next: {next_label} →",
             key=f"wizard_next_{index}",
             type="primary",
-            disabled=result is None,
+            disabled=result is None
+            or any(
+                st.session_state.get("step_errors", {}).get(stage, [])
+                for stage in range(2, index + 1)
+            ),
             on_click=go_to_step,
             args=(index + 1,),
         )

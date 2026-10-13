@@ -20,19 +20,19 @@ Use repository `tankr98/Lastrada`, branch `feat/lastrada-v0`, entrypoint `app.py
 
 ## A seven-screen creator workflow
 
-The workspace opens in navy dark mode with a light-mode toggle, progress at the top and a compact collapsible sidebar. Each screen focuses on one task, with compact buttons and a subtle transition that respects reduced-motion preferences.
+The landing page introduces **Your Music, Your Time.** with a centered Start button. **New Sample** is available on every screen and clears the case, uploads and edits while preserving the theme. The workspace opens in navy dark mode with a light-mode toggle, progress at the top and a compact collapsible sidebar. Each screen focuses on one task, with compact buttons and a subtle transition that respects reduced-motion preferences.
 
 1. **Add your tracks:** upload the original and your new recording.
-2. **Track details:** enter titles and artists, then choose recording samples, replayed music or both.
+2. **Track details:** see the preliminary PF-NMF sound-overlap finding, enter titles and artists, then confirm recording samples, replayed music or both. PF-NMF cannot determine the rights type; the creator’s choice carries forward.
 3. **Listen & check:** play both tracks and edit the suggested timestamps. Sound comparisons and technical details are optional.
 4. **Describe the sound:** name what you used, how you used it, repetition and its musical role.
 5. **Place the sample:** name song sections, overall placement and any known pitch change.
 6. **Review your draft:** generate and edit the Nature of Use text, add your name and save or mark it as reviewed.
 7. **Your Nature of Use:** preview and download HTML or text. HTML can be printed to PDF; supporting JSON is optional.
 
-Estimated master-analysis times populate the editable table; publishing never inherits them. Timing patterns prompt questions about recurring use, melody and short loops. Only a creator-confirmed answer fills musical details, without replacing existing edits. Suggested times need a separate listening confirmation.
+Estimated master-analysis times populate a read-only table. Accept them to carry their exact values into the review, or choose **No, let me edit** to unlock corrections; publishing never inherits them. Timing patterns prompt questions about recurring use, melody and short loops. Only a creator-confirmed answer fills musical details, without replacing existing edits. Suggested times need a separate listening confirmation.
 
-**Back** and **Next** preserve session inputs; the final Next saves the review draft. Marking a document as reviewed requires confirmed findings, checked details and a reviewer name. Incomplete drafts remain downloadable and list missing inputs. Recording reuse and compositional reuse stay separate.
+**Back** and **Next** preserve session inputs; the final Next saves the review draft. Marking a document as reviewed requires confirmed findings, checked details and a reviewer name. Each Next button requires the relevant listening checks or musical details. Document generation and the final screen require complete musical inputs, confirmed details, a description and the reviewer’s name. In-progress edits can be saved as a session draft. Recording reuse and compositional reuse stay separate.
 
 Playback and analysis run in the hosting workspace. There is no external model API. Uploads and reviews are session-local, not a persistent case database. Downloaded documents contain case information and need approved private storage.
 

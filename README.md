@@ -18,19 +18,21 @@ Alternatively, create a virtual environment with `python -m venv .venv`, install
 
 Use repository `tankr98/Lastrada`, branch `feat/lastrada-v0`, entrypoint `app.py`, and Python 3.12. Production dependencies and native audio packages are declared in `requirements.txt` and `packages.txt`. Set app sharing to **Only specific people can view this app** before client uploads. See [deployment instructions](docs/DEPLOYMENT.md).
 
-## A four-step creator workflow
+## A seven-screen creator workflow
 
-The workspace opens in navy dark mode with a light-mode toggle, progress at the top and a compact collapsible sidebar. Estimated master-analysis times are carried into an editable table. Confirmed existing review times are preserved, and publishing never inherits master measurement intervals.
+The workspace opens in navy dark mode with a light-mode toggle, progress at the top and a compact collapsible sidebar. Each screen focuses on one task, with compact buttons and a subtle transition that respects reduced-motion preferences.
 
-Timing patterns prompt questions about use throughout the track, melody and short loops. Only a creator-confirmed answer fills musical details, and existing edits are preserved. Estimated times require a separate listening confirmation. The form is split into times, sound and song sections/changes.
+1. **Add your tracks:** upload the original and your new recording.
+2. **Track details:** enter titles and artists, then choose recording samples, replayed music or both.
+3. **Listen & check:** play both tracks and edit the suggested timestamps. Sound comparisons and technical details are optional.
+4. **Describe the sound:** name what you used, how you used it, repetition and its musical role.
+5. **Place the sample:** name song sections, overall placement and any known pitch change.
+6. **Review your draft:** generate and edit the Nature of Use text, add your name and save or mark it as reviewed.
+7. **Your Nature of Use:** preview and download HTML or text. HTML can be printed to PDF; supporting JSON is optional.
 
+Estimated master-analysis times populate the editable table; publishing never inherits them. Timing patterns prompt questions about recurring use, melody and short loops. Only a creator-confirmed answer fills musical details, without replacing existing edits. Suggested times need a separate listening confirmation.
 
-1. **Add your tracks:** upload the original and your new track, enter both titles/artists, and choose whether you sampled the recording, replayed/re-sang the music, or need both paths checked.
-2. **Listen & explore:** compare playback and suggested moments. Estimated audio overlap is a listening aid, not confirmed sample coverage. Technical details are tucked away.
-3. **Describe your sample:** identify the sound or musical part, enter its appearances in your track, name sections, explain how you used it, repetition and its role. Generate and edit the Nature of Use draft. Optional original timestamps, lyrics and pitch details are retained when known.
-4. **Your Nature of Use:** read the document, see any missing details and download HTML or text. HTML can be printed to PDF. The analysis JSON and automated/reviewed versions remain optional supporting material.
-
-**Next** saves draft corrections; **Back** preserves edits. Marking a document as reviewed requires confirmed findings, checked details and a reviewer name. Incomplete drafts remain downloadable and clearly list missing inputs. Recording reuse and compositional reuse stay separate throughout.
+**Back** and **Next** preserve session inputs; the final Next saves the review draft. Marking a document as reviewed requires confirmed findings, checked details and a reviewer name. Incomplete drafts remain downloadable and list missing inputs. Recording reuse and compositional reuse stay separate.
 
 Playback and analysis run in the hosting workspace. There is no external model API. Uploads and reviews are session-local, not a persistent case database. Downloaded documents contain case information and need approved private storage.
 

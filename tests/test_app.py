@@ -70,22 +70,22 @@ def test_next_back_flow_saves_draft_and_preserves_edits():
     by_label(app.checkbox, "Use a clearly labeled synthetic demonstration").check().run()
     by_label(app.button, "Find suggested moments").click().run()
     by_label(app.button, "Next: Listen & explore →").click().run()
-    assert app.session_state["workflow_tab"] == "2 · Listen & explore"
-    by_label(app.button, "Next: Describe your sample →").click().run()
-    assert app.session_state["workflow_tab"] == "3 · Describe your sample"
+    assert app.session_state["workflow_tab"] == "3 · Listen & check"
+    by_label(app.button, "Next: Describe the sound →").click().run()
+    assert app.session_state["workflow_tab"] == "4 · Describe the sound"
     by_label(app.text_area, "Edit your Nature of Use draft").set_value("Unsaved synthetic draft")
     by_label(app.text_input, "Your name / reviewer (required to mark as reviewed)").set_value(
         "Reviewer"
     )
     by_label(app.button, "Next: Your Nature of Use →").click().run()
     assert not app.exception
-    assert app.session_state["workflow_tab"] == "4 · Your Nature of Use"
+    assert app.session_state["workflow_tab"] == "7 · Your Nature of Use"
     assert app.session_state["analysis"].review.status == "edited"
     assert (
         app.session_state["analysis"].review.corrected["nature_of_use"]["text"]
         == "Unsaved synthetic draft"
     )
-    by_label(app.button, "← Back: Describe your sample").click().run()
+    by_label(app.button, "← Back: Review your draft").click().run()
     assert (
         by_label(app.text_area, "Edit your Nature of Use draft").value == "Unsaved synthetic draft"
     )
@@ -93,7 +93,7 @@ def test_next_back_flow_saves_draft_and_preserves_edits():
         by_label(app.text_input, "Your name / reviewer (required to mark as reviewed)").value
         == "Reviewer"
     )
-    by_label(app.button, "← Back: Listen & explore").click().run()
+    by_label(app.button, "← Back: Place the sample").click().run()
     by_label(app.button, "← Back: Add your tracks").click().run()
     assert app.session_state["workflow_tab"] == "1 · Add your tracks"
     assert app.session_state["analysis"].synthetic
@@ -101,7 +101,7 @@ def test_next_back_flow_saves_draft_and_preserves_edits():
 
 def test_manual_step_cannot_bypass_intake():
     app = AppTest.from_file(Path(__file__).resolve().parents[1] / "app.py").run()
-    app.session_state["workflow_tab"] = "4 · Your Nature of Use"
+    app.session_state["workflow_tab"] = "7 · Your Nature of Use"
     app.run()
     # Defensive guard runs before the tab widget as well as on manual tab changes.
     assert app.session_state["workflow_tab"] == "1 · Add your tracks"
@@ -130,7 +130,7 @@ def test_next_does_not_revoke_unchanged_approval():
     by_label(app.button, "Next: Your Nature of Use →").click().run()
     assert not app.exception
     assert app.session_state["analysis"].review.status == "approved"
-    by_label(app.button, "← Back: Describe your sample").click().run()
+    by_label(app.button, "← Back: Review your draft").click().run()
     by_label(app.text_area, "Edit your Nature of Use draft").set_value("Changed synthetic finding.")
     by_label(app.button, "Next: Your Nature of Use →").click().run()
     assert app.session_state["analysis"].review.status == "edited"
@@ -153,7 +153,7 @@ def test_prefilled_times_require_confirmation_and_loop_answers_fill_only_blanks(
     assert saved["detection_status"] == "candidate"
     assert saved["sample_detected"] is None
     assert saved["sample_occurrences"][0]["status"] == "estimated"
-    by_label(app.button, "← Back: Describe your sample").click().run()
+    by_label(app.button, "← Back: Review your draft").click().run()
     question = next(r for r in app.radio if "repeating loop?" in r.label)
     question.set_value("Yes").run()
     by_label(app.button, "Use this answer to fill the details").click().run()
@@ -169,3 +169,33 @@ def test_prefilled_times_require_confirmation_and_loop_answers_fill_only_blanks(
     saved = app.session_state["analysis"].review.corrected["master"]["locate"]
     assert saved["detection_status"] == "verified"
     assert saved["sample_occurrences"][0]["source"] == "expert_review"
+
+
+def test_seven_screen_navigation_keeps_musical_details():
+    app = AppTest.from_file(
+        Path(__file__).resolve().parents[1] / "app.py", default_timeout=30
+    ).run()
+    assert by_label(app.button, "Next: Track details →").disabled
+    by_label(app.checkbox, "Use a clearly labeled synthetic demonstration").check().run()
+    by_label(app.button, "Next: Track details →").click().run()
+    assert app.session_state["workflow_tab"] == "2 · Track details"
+    by_label(app.radio, "Type of reuse").set_value("Master")
+    by_label(app.button, "Find suggested moments").click().run()
+    assert app.session_state["workflow_tab"] == "3 · Listen & check"
+    by_label(app.button, "Next: Describe the sound →").click().run()
+    by_label(app.text_input, "What did you take?").set_value("A drum break").run()
+    by_label(app.button, "Next: Place the sample →").click().run()
+    assert app.session_state["workflow_tab"] == "5 · Place the sample"
+    by_label(app.multiselect, "Which sections of your track?").set_value(["verse"]).run()
+    by_label(app.button, "Next: Review your draft →").click().run()
+    assert app.session_state["workflow_tab"] == "6 · Review your draft"
+    by_label(app.button, "Next: Your Nature of Use →").click().run()
+    assert app.session_state["workflow_tab"] == "7 · Your Nature of Use"
+    saved = app.session_state["analysis"].review.corrected["master"]["describe"]
+    assert saved["sections"] == ["verse"]
+    assert saved["elements"][0]["value"] == "A drum break"
+    by_label(app.button, "← Back: Review your draft").click().run()
+    by_label(app.button, "← Back: Place the sample").click().run()
+    assert by_label(app.multiselect, "Which sections of your track?").value == ["verse"]
+    assert by_label(app.text_input, "What did you take?").value == "A drum break"
+    assert not app.exception

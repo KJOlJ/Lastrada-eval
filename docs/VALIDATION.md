@@ -2,7 +2,7 @@
 
 Validated in a Python 3.12 Linux cloud environment on CPU with FFmpeg available.
 
-- `pytest -q`: 57 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow with Next/Back navigation, saved edits and approval preservation.
+- `pytest -q`: 67 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow with Next/Back navigation, saved edits and approval preservation.
 - `ruff check .` and `git diff --check`: passed.
 - Synthetic end-to-end baseline: known coverage 66.67%, estimated spectral activation 67.07%, absolute error 0.40 percentage points. This single generated signal pair is not a real-music benchmark.
 - `scripts/check_sampleid.py`: authoritative checksum-verified Sony weights, CPU inference, embedding shape 1×2048 and self-match cosine approximately 0.99999988. This is integration evidence, not historical accuracy.
@@ -16,3 +16,5 @@ The app can process uploaded audio and generate reviewable drafts. Publishing lo
 The seven-screen interface was checked in headless Chromium: primary-button labels rendered navy on pale blue in both themes, only the active screen was visible, timing suggestions carried into musical details, and custom draft text survived forward/back navigation.
 
 Landing/restart and quality gates were checked in Streamlit tests and Chromium. Accepting PF-NMF suggested times preserves their exact start/end values; editing is unlocked only on disagreement. A clean restart clears analysis, preliminary results and uploads while preserving the theme. No master/publishing inference accuracy is claimed.
+
+Filename-credit parsing covers Unicode artists, explicit “by” names, conventional artist/title separators, ambiguous filenames and preserving user corrections. Browser checks uploaded generated WAVs with both filename conventions and submitted edited credits.

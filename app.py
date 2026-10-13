@@ -24,6 +24,7 @@ from lastrada.alignment.intervals import coverage
 from lastrada.classification.placement import classify
 from lastrada.recognition.sampleid_adapter import SampleIDAdapter, SampleIDUnavailable
 from lastrada.ingestion.dataset import load_dataset, retrieve_examples
+from lastrada.ingestion.filenames import prefill_credits
 from lastrada.config import load_settings
 from lastrada.reporting.suggestions import suggested_intervals, timing_questions, confirmed_prefills
 
@@ -55,6 +56,11 @@ def new_sample():
 
 def start_sample():
     st.session_state.started = True
+
+
+def uploaded_credits(prefix):
+    uploaded = st.session_state.get(prefix + "_upload")
+    prefill_credits(st.session_state, prefix, uploaded.name if uploaded else "")
 
 
 def prepare_preview(original_file, new_file, synthetic):
@@ -317,6 +323,9 @@ with views[0]:
             st.caption("The track you sampled, or the song whose melody or lyrics you replayed.")
             original_file = st.file_uploader(
                 "Original audio",
+                key="original_upload",
+                on_change=uploaded_credits,
+                args=("original",),
                 type=["wav", "flac", "mp3", "m4a", "ogg"],
                 help="MP3, WAV, FLAC, M4A or OGG · up to 100 MB · maximum 10 minutes",
             )
@@ -328,6 +337,9 @@ with views[0]:
             st.caption("Your finished track or current mix containing the sample.")
             new_file = st.file_uploader(
                 "New audio",
+                key="new_upload",
+                on_change=uploaded_credits,
+                args=("new",),
                 type=["wav", "flac", "mp3", "m4a", "ogg"],
                 help="MP3, WAV, FLAC, M4A or OGG · up to 100 MB · maximum 10 minutes",
             )
@@ -355,7 +367,18 @@ with views[0]:
                 st.error(str(exc))
     with st.container(key="stage_1"):
         st.subheader("Name the tracks")
-        st.caption("These credits will appear in your document.")
+        st.caption(
+            "These credits will appear in your document. Titles and artists recognized from filenames are filled in for you — check or edit them below."
+        )
+        if synthetic:
+            for key, default in {
+                "original_title": "Synthetic source",
+                "original_artist": "Generated tones",
+                "new_title": "Synthetic mix",
+                "new_artist": "Generated tones",
+            }.items():
+                if st.session_state.get(key, "") == "":
+                    st.session_state[key] = default
         preview = st.session_state.get("preview_analysis")
         if preview:
             if preview.master.locate.measurement_intervals:
@@ -374,21 +397,19 @@ with views[0]:
             with left:
                 original_title = st.text_input(
                     "Original title",
-                    "Synthetic source" if synthetic else "",
+                    key="original_title",
                     placeholder="Song title",
                 )
                 original_artist = st.text_input(
                     "Original artist",
-                    "Generated tones" if synthetic else "",
+                    key="original_artist",
                     placeholder="Artist or group",
                 )
             with right:
-                new_title = st.text_input(
-                    "New title", "Synthetic mix" if synthetic else "", placeholder="Song title"
-                )
+                new_title = st.text_input("New title", key="new_title", placeholder="Song title")
                 new_artist = st.text_input(
                     "New artist",
-                    "Generated tones" if synthetic else "",
+                    key="new_artist",
                     placeholder="Artist or group",
                 )
             st.divider()

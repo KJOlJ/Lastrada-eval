@@ -23,7 +23,7 @@ Use repository `tankr98/Lastrada`, branch `feat/lastrada-v0`, entrypoint `app.py
 The landing page introduces **Your Music, Your Time.** with a centered Start button. **New Sample** is available on every screen and clears the case, uploads and edits while preserving the theme. The workspace opens in navy dark mode with a light-mode toggle, progress at the top and a compact collapsible sidebar. Each screen focuses on one task, with compact buttons and a subtle transition that respects reduced-motion preferences.
 
 1. **Add your tracks:** upload the original and your new recording.
-2. **Track details:** see the preliminary PF-NMF sound-overlap finding, enter titles and artists, then confirm recording samples, replayed music or both. PF-NMF cannot determine the rights type; the creator’s choice carries forward.
+2. **Track details:** title and artist prefill from recognizable filenames (`Title by Artist` or conventional `Artist - Title`), remain editable, and preserve creator corrections. See the preliminary PF-NMF sound-overlap finding, enter titles and artists, then confirm recording samples, replayed music or both. PF-NMF cannot determine the rights type; the creator’s choice carries forward.
 3. **Listen & check:** play both tracks and edit the suggested timestamps. Sound comparisons and technical details are optional.
 4. **Describe the sound:** name what you used, how you used it, repetition and its musical role.
 5. **Place the sample:** name song sections, overall placement and any known pitch change.

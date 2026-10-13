@@ -109,7 +109,8 @@ h1,h2,h3,h4 {{letter-spacing:-.035em;color:{palette["text"]} !important;}}
 [data-testid="stSidebar"][aria-expanded="false"] {{width:0 !important;min-width:0 !important;max-width:0 !important;}}
 [data-testid="stHeader"] button {{color:{palette["text"]} !important;}}
 .stCaption,.stCaption p,[data-testid="stCaption"] p,small {{color:{palette["muted"]} !important;}}
-[data-testid="stFileUploaderDropzone"] small {{color:{palette["muted"]} !important;}}
+[data-testid="stFileUploaderDropzone"] small,[data-testid="stFileUploaderDropzone"] span {{color:{palette["muted"]} !important;opacity:1 !important;}}
+[data-testid="stCaptionContainer"],[data-testid="stCaptionContainer"] p {{opacity:1 !important;}}
 [data-testid="stAlert"] {{background:{palette["surface"]};color:{palette["text"]};border:1px solid {palette["border"]};}}
 [data-testid="stSidebar"] p {{font-size:.9rem;}}
 [data-testid="stMarkdownContainer"], [data-testid="stWidgetLabel"],label {{color:{palette["text"]} !important;}}

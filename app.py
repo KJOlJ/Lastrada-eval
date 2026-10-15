@@ -4,9 +4,7 @@ import os
 from copy import deepcopy
 from time import perf_counter
 from pathlib import Path
-import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
 from lastrada.audio.io import decode, wav_bytes
 from lastrada.audio.synthetic import demo_pair
@@ -14,6 +12,7 @@ from lastrada.pipeline import analyze_pair
 from lastrada.schemas.models import Intake, Work, PLACEMENT_CLASSES, Feature, Interval, Placement
 from lastrada.reporting.review import reviewed_copy
 from lastrada.reporting.export import json_report
+from lastrada.reporting.comparison import spectral_view, comparison_figure
 from lastrada.reporting.document import (
     document_text,
     document_html,
@@ -257,43 +256,9 @@ def apply_suggestion(rights, kind):
             st.session_state[prefix + field] = value
 
 
-def chart(audio, intervals=(), color="#7950B5"):
-    step = max(1, len(audio.samples) // 3000)
-    fig = go.Figure(
-        go.Scatter(
-            x=np.arange(0, len(audio.samples), step) / audio.sample_rate,
-            y=audio.samples[::step],
-            line={"color": color, "width": 1},
-            name="Audio",
-        )
-    )
-    fig.update_layout(
-        shapes=[
-            dict(
-                type="rect",
-                x0=interval.new_start,
-                x1=interval.new_end,
-                y0=0,
-                y1=1,
-                xref="x",
-                yref="y domain",
-                fillcolor=color,
-                opacity=0.2,
-                line=dict(width=0),
-            )
-            for interval in intervals
-        ]
-    )
-    fig.update_layout(
-        height=230,
-        xaxis_title="Seconds",
-        yaxis_title="Amplitude",
-        margin={"l": 20, "r": 20, "t": 10, "b": 30},
-        template="plotly_dark" if dark_mode else "plotly_white",
-        paper_bgcolor=palette["bg"],
-        plot_bgcolor=palette["surface"],
-    )
-    return fig
+@st.cache_data(show_spinner=False, max_entries=4)
+def cached_spectral_view(audio):
+    return spectral_view(audio)
 
 
 # Keep widgets mounted, as tabs did, so uploads and table edits survive navigation.
@@ -568,7 +533,11 @@ with views[1]:
         with new_player:
             st.caption("YOUR TRACK")
             st.audio(wav_bytes(st.session_state.new_audio), format="audio/wav")
-        with st.expander("Explore the sound comparison"):
+        with st.container():
+            st.subheader("See how the tracks compare")
+            st.caption(
+                "These spectral views show the sound frequencies in each track. Hover over a mint marker to inspect a suggested moment and any available original-track times. Drag to zoom; double-click to reset."
+            )
             if result.synthetic:
                 st.warning(
                     "Synthetic demonstration · No historical audio or pretrained inference is implied."
@@ -596,48 +565,21 @@ with views[1]:
                     st.caption(
                         "Shading marks moments with similar sound patterns. Shared instruments can also create overlap, so this is not a confirmed sample percentage."
                     )
+                    intervals_for_view = suggested_intervals(result, "master")
                     st.plotly_chart(
-                        chart(st.session_state.new_audio, path.locate.measurement_intervals),
+                        comparison_figure(
+                            cached_spectral_view(st.session_state.original_audio),
+                            cached_spectral_view(st.session_state.new_audio),
+                            intervals_for_view,
+                            dark=dark_mode,
+                        ),
                         width="stretch",
-                        key="new_measurement_chart",
+                        key="spectral_comparison",
                     )
-                    st.write("Suggested moments to listen to")
-                    if path.locate.sample_occurrences:
-                        st.dataframe(
-                            [
-                                {
-                                    "Your track starts (s)": i.new_start,
-                                    "Ends (s)": i.new_end,
-                                    "Original starts (s)": i.original_start,
-                                    "Original ends (s)": i.original_end,
-                                }
-                                for i in path.locate.sample_occurrences
-                            ]
-                        )
-                    else:
-                        st.caption(
-                            "No sample timestamps have been confirmed. Add the moments you hear in step 3."
-                        )
-                    with st.expander("See estimated overlap times"):
-                        st.dataframe(
-                            [
-                                {"Start in your track (s)": i.new_start, "End (s)": i.new_end}
-                                for i in path.locate.measurement_intervals
-                            ]
-                        )
-                    st.write("The original track")
-                    source_intervals = [
-                        i.model_copy(
-                            update={"new_start": i.original_start, "new_end": i.original_end}
-                        )
-                        for i in path.locate.sample_occurrences
-                        if i.original_start is not None
-                    ]
-                    st.plotly_chart(
-                        chart(st.session_state.original_audio, source_intervals, "#3F7A89"),
-                        width="stretch",
-                        key="original_chart",
+                    st.caption(
+                        "PF-NMF highlights similar sound in your track; it does not tell us which passage of the original was used. Source times appear only when available from matching or your review. Each track’s colour scale is relative to its own peak."
                     )
+
                 else:
                     st.write(
                         "Replayed melodies and re-sung lyrics need your listening notes. The tool cannot automatically locate them yet. Describe them separately from any recording sample in step 3."

@@ -24,7 +24,7 @@ The landing page introduces **Your Music, Your Time.** with a centered Start but
 
 1. **Add your tracks:** upload the original and your new recording.
 2. **Track details:** title and artist prefill from recognizable filenames (`Title by Artist` or conventional `Artist - Title`), remain editable, and preserve creator corrections. See the preliminary PF-NMF sound-overlap finding, enter titles and artists, then confirm recording samples, replayed music or both. PF-NMF cannot determine the rights type; the creator’s choice carries forward.
-3. **Listen & check:** play both tracks and edit the suggested timestamps. If a reuse type does not apply, choose “I didn’t replay or re-sing anything” or “I didn’t use the original recording”; its timestamps and musical details are skipped. Sound comparisons and technical details are optional.
+3. **Listen & check:** play both tracks and edit the suggested timestamps. If a reuse type does not apply, choose “I didn’t replay or re-sing anything” or “I didn’t use the original recording”; its timestamps and musical details are skipped. Two spectral views appear after analysis with zoom and hover markers. Tooltips show both track ranges when original positions are available; PF-NMF-only suggestions explicitly leave source positions unknown. Technical details are optional.
 4. **Describe the sound:** name what you used, how you used it, repetition and its musical role.
 5. **Place the sample:** name song sections, overall placement and any known pitch change.
 6. **Review your draft:** generate and edit the Nature of Use text, add your name and save or mark it as reviewed.

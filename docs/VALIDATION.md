@@ -2,7 +2,7 @@
 
 Validated in a Python 3.12 Linux cloud environment on CPU with FFmpeg available.
 
-- `pytest -q`: 69 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow with Next/Back navigation, saved edits and approval preservation.
+- `pytest -q`: 71 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow with Next/Back navigation, saved edits and approval preservation.
 - `ruff check .` and `git diff --check`: passed.
 - Synthetic end-to-end baseline: known coverage 66.67%, estimated spectral activation 67.07%, absolute error 0.40 percentage points. This single generated signal pair is not a real-music benchmark.
 - `scripts/check_sampleid.py`: authoritative checksum-verified Sony weights, CPU inference, embedding shape 1×2048 and self-match cosine approximately 0.99999988. This is integration evidence, not historical accuracy.
@@ -22,3 +22,7 @@ Filename-credit parsing covers Unicode artists, explicit “by” names, convent
 Mixed-use regression: a creator can confirm a recording sample, explicitly choose no replayed/re-sung music, and finish without publishing timestamps or musical details. Browser checks confirm irrelevant fields disappear while recording evidence remains required. No-use exports exclude stale positive details.
 
 For creator-selected “throughout” placement, generated narrative and HTML/text Nature of Use exports summarize placement instead of enumerating occurrences. Loop descriptions and detailed JSON evidence remain intact; other placements retain their timestamps.
+
+Spectral comparison tests verify bounded display data, silence rendering and evidence-aware hover labels: unlocated source passages are explicit, and original-track highlights require supplied source timestamps. Display aggregation does not modify PF-NMF intervals.
+
+Chromium rendered both spectral panels after synthetic analysis and displayed the suggested-moment tooltip on hover, including the explicit unlocated-source message.

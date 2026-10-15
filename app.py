@@ -13,6 +13,7 @@ from lastrada.schemas.models import Intake, Work, PLACEMENT_CLASSES, Feature, In
 from lastrada.reporting.review import reviewed_copy
 from lastrada.reporting.export import json_report
 from lastrada.reporting.comparison import spectral_view, comparison_figure
+from lastrada.pipeline import reuse_preview
 from lastrada.reporting.document import (
     document_text,
     document_html,
@@ -62,11 +63,28 @@ def uploaded_credits(prefix):
     prefill_credits(st.session_state, prefix, uploaded.name if uploaded else "")
 
 
+def pair_identity(original_file, new_file, synthetic):
+    return (
+        synthetic,
+        None if synthetic else getattr(original_file, "file_id", None),
+        None if synthetic else getattr(new_file, "file_id", None),
+        settings.model_dump_json(),
+    )
+
+
 def prepare_preview(original_file, new_file, synthetic):
+    identity = pair_identity(original_file, new_file, synthetic)
+    if (
+        st.session_state.get("preview_identity") == identity
+        and "preview_analysis" in st.session_state
+    ):
+        return st.session_state.preview_analysis
     if synthetic:
         original, new, _ = demo_pair()
     else:
         original, new = decode(original_file.getvalue()), decode(new_file.getvalue())
+    st.session_state.decoded_pair = (original, new)
+    st.session_state.preview_identity = pair_identity(original_file, new_file, synthetic)
     intake = Intake(
         case_id="preview",
         original_work=Work(title="Original", artist="Unknown"),
@@ -87,6 +105,7 @@ def go_to_step(index):
             return
     if index == 6 and not st.session_state.get("document_ready", False):
         return
+    st.session_state.refresh_screen = True
     st.session_state.workflow_tab = WORKFLOW_STEPS[
         index if "analysis" in st.session_state or index <= 1 else 0
     ]
@@ -116,6 +135,7 @@ if st.session_state.get("workflow_tab") not in WORKFLOW_STEPS:
         legacy_steps.index(previous) if previous in legacy_steps else 0
     ]
 validate_step()
+st.session_state.pop("refresh_screen", None)
 
 brand, restart, appearance = st.columns([4, 1.4, 1.3])
 restart.button("New Sample", on_click=new_sample, key="new_sample")
@@ -256,9 +276,24 @@ def apply_suggestion(rights, kind):
             st.session_state[prefix + field] = value
 
 
-@st.cache_data(show_spinner=False, max_entries=4)
-def cached_spectral_view(audio):
-    return spectral_view(audio)
+def listen_assets(result):
+    # Session-local: avoid rehashing whole audio arrays on every interaction.
+    if "playback_bytes" not in st.session_state:
+        st.session_state.playback_bytes = tuple(
+            wav_bytes(st.session_state[key]) for key in ("original_audio", "new_audio")
+        )
+    if "spectral_views" not in st.session_state:
+        st.session_state.spectral_views = tuple(
+            spectral_view(st.session_state[key]) for key in ("original_audio", "new_audio")
+        )
+    intervals = suggested_intervals(result, "master")
+    signature = (dark_mode, tuple(i.model_dump_json() for i in intervals))
+    if st.session_state.get("comparison_signature") != signature:
+        st.session_state.comparison_plot = comparison_figure(
+            *st.session_state.spectral_views, intervals, dark=dark_mode
+        )
+        st.session_state.comparison_signature = signature
+    return st.session_state.playback_bytes, st.session_state.comparison_plot
 
 
 # Keep widgets mounted, as tabs did, so uploads and table edits survive navigation.
@@ -305,7 +340,7 @@ with views[0]:
                 type=["wav", "flac", "mp3", "m4a", "ogg"],
                 help="MP3, WAV, FLAC, M4A or OGG · up to 100 MB · maximum 10 minutes",
             )
-            if original_file:
+            if original_file and current_step == 0:
                 st.audio(original_file.getvalue(), format=original_file.type or "audio/mpeg")
                 st.caption(f"{original_file.name} · {original_file.size / 1024 / 1024:.1f} MB")
         with right, st.container(border=False):
@@ -319,7 +354,7 @@ with views[0]:
                 type=["wav", "flac", "mp3", "m4a", "ogg"],
                 help="MP3, WAV, FLAC, M4A or OGG · up to 100 MB · maximum 10 minutes",
             )
-            if new_file:
+            if new_file and current_step == 0:
                 st.audio(new_file.getvalue(), format=new_file.type or "audio/mpeg")
                 st.caption(f"{new_file.name} · {new_file.size / 1024 / 1024:.1f} MB")
         if synthetic:
@@ -451,7 +486,12 @@ with views[0]:
                 )
                 analysis_start = perf_counter()
                 t = perf_counter()
-                if synthetic:
+                reusable = "preview_analysis" in st.session_state and st.session_state.get(
+                    "preview_identity"
+                ) == pair_identity(original_file, new_file, synthetic)
+                if reusable:
+                    original, new = st.session_state.decoded_pair
+                elif synthetic:
                     original, new, _ = demo_pair()
                 else:
                     if not original_file or not new_file:
@@ -478,23 +518,39 @@ with views[0]:
                         st.warning(adapter_error)
                 adapter_setup_time = perf_counter() - adapter_setup_start
                 with st.spinner("Measuring audio locally…"):
-                    result = analyze_pair(
-                        intake,
-                        original,
-                        new,
-                        adapter=adapter,
-                        synthetic=synthetic,
-                        settings=settings,
+                    result = (
+                        reuse_preview(st.session_state.preview_analysis, intake)
+                        if reusable and not use_sampleid
+                        else analyze_pair(
+                            intake,
+                            original,
+                            new,
+                            adapter=adapter,
+                            synthetic=synthetic,
+                            settings=settings,
+                        )
                     )
                 if adapter_error:
                     result.methods["sampleid"] = f"unavailable: {adapter_error}"
                     result.warnings.append(adapter_error)
                 result.timings_seconds["audio_preparation"] = preparation_time
                 result.timings_seconds["model_setup"] = adapter_setup_time
-                result.timings_seconds["total"] = perf_counter() - analysis_start
+                attachment_seconds = perf_counter() - analysis_start
+                if reusable and not use_sampleid:
+                    result.timings_seconds["intake_attachment"] = attachment_seconds
+                    result.timings_seconds["total"] += attachment_seconds
+                else:
+                    result.timings_seconds["total"] = attachment_seconds
                 st.session_state.analysis = result
                 st.session_state.original_audio = original
                 st.session_state.new_audio = new
+                for asset in (
+                    "playback_bytes",
+                    "spectral_views",
+                    "comparison_plot",
+                    "comparison_signature",
+                ):
+                    st.session_state.pop(asset, None)
                 # Clear prior case's review widgets and exports.
                 for key in list(st.session_state):
                     if key.startswith("review_"):
@@ -518,83 +574,80 @@ with views[0]:
         st.button("← Back: Add your tracks", key="back_details", on_click=go_to_step, args=(0,))
 
 result = st.session_state.get("analysis")
-with views[1]:
-    st.subheader("Listen & check")
-    st.caption(
-        "Compare the tracks and check the suggested moments. The analysis is a starting point, not a substitute for listening."
-    )
-    if result is None:
-        st.write("Provide a pair in Intake, or try the synthetic demonstration.")
-    else:
-        original_player, new_player = st.columns(2, gap="large")
-        with original_player:
-            st.caption("THE ORIGINAL")
-            st.audio(wav_bytes(st.session_state.original_audio), format="audio/wav")
-        with new_player:
-            st.caption("YOUR TRACK")
-            st.audio(wav_bytes(st.session_state.new_audio), format="audio/wav")
-        with st.container():
-            st.subheader("See how the tracks compare")
-            st.caption(
-                "These spectral views show the sound frequencies in each track. Hover over a mint marker to inspect a suggested moment and any available original-track times. Drag to zoom; double-click to reset."
-            )
-            if result.synthetic:
-                st.warning(
-                    "Synthetic demonstration · No historical audio or pretrained inference is implied."
-                )
-            for rights in result.input.analysis_scope:
-                path = getattr(result, rights)
-                st.subheader("Recorded audio" if rights == "master" else "Melody & lyrics")
+if current_step == 2:
+    with views[1]:
+        st.subheader("Listen & check")
+        st.caption(
+            "Compare the tracks and check the suggested moments. The analysis is a starting point, not a substitute for listening."
+        )
+        if result is None:
+            st.write("Provide a pair in Intake, or try the synthetic demonstration.")
+        else:
+            playback, spectral_plot = listen_assets(result)
+            original_player, new_player = st.columns(2, gap="large")
+            with original_player:
+                st.caption("THE ORIGINAL")
+                st.audio(playback[0], format="audio/wav")
+            with new_player:
+                st.caption("YOUR TRACK")
+                st.audio(playback[1], format="audio/wav")
+            with st.container():
+                st.subheader("See how the tracks compare")
                 st.caption(
-                    {
-                        "candidate": "Suggested matches · check by listening",
-                        "not_verified": "Waiting for your listening check",
-                        "unknown": "More information needed",
-                        "not_detected": "No matches found by this check",
-                        "verified": "Checked by the reviewer",
-                    }.get(path.locate.detection_status, "Not requested")
+                    "These spectral views show the sound frequencies in each track. Hover over a mint marker to inspect a suggested moment and any available original-track times. Drag to zoom; double-click to reset."
                 )
-                if rights == "master":
-                    seconds, percent = (
-                        path.locate.total_covered_seconds,
-                        path.locate.coverage_percentage,
+                if result.synthetic:
+                    st.warning(
+                        "Synthetic demonstration · No historical audio or pretrained inference is implied."
                     )
-                    st.metric(
-                        "Estimated audio overlap — experimental", f"{percent:.1f}% · {seconds:.2f}s"
-                    )
-                    st.caption(
-                        "Shading marks moments with similar sound patterns. Shared instruments can also create overlap, so this is not a confirmed sample percentage."
-                    )
-                    intervals_for_view = suggested_intervals(result, "master")
-                    st.plotly_chart(
-                        comparison_figure(
-                            cached_spectral_view(st.session_state.original_audio),
-                            cached_spectral_view(st.session_state.new_audio),
-                            intervals_for_view,
-                            dark=dark_mode,
-                        ),
-                        width="stretch",
-                        key="spectral_comparison",
-                    )
-                    st.caption(
-                        "PF-NMF highlights similar sound in your track; it does not tell us which passage of the original was used. Source times appear only when available from matching or your review. Each track’s colour scale is relative to its own peak."
-                    )
-
-                else:
-                    st.write(
-                        "Replayed melodies and re-sung lyrics need your listening notes. The tool cannot automatically locate them yet. Describe them separately from any recording sample in step 3."
-                    )
-            with st.expander("How the analysis works · technical details"):
-                st.caption(
-                    "The tool compares sound patterns. It cannot reliably identify instruments, lyrics or musical sections for you yet. Your listening notes complete the document."
-                )
-                st.json(result.methods)
-                st.write("Processing time (seconds)", result.timings_seconds)
                 for rights in result.input.analysis_scope:
-                    st.write(getattr(result, rights).describe.limitations)
+                    path = getattr(result, rights)
+                    st.subheader("Recorded audio" if rights == "master" else "Melody & lyrics")
+                    st.caption(
+                        {
+                            "candidate": "Suggested matches · check by listening",
+                            "not_verified": "Waiting for your listening check",
+                            "unknown": "More information needed",
+                            "not_detected": "No matches found by this check",
+                            "verified": "Checked by the reviewer",
+                        }.get(path.locate.detection_status, "Not requested")
+                    )
+                    if rights == "master":
+                        seconds, percent = (
+                            path.locate.total_covered_seconds,
+                            path.locate.coverage_percentage,
+                        )
+                        st.metric(
+                            "Estimated audio overlap — experimental",
+                            f"{percent:.1f}% · {seconds:.2f}s",
+                        )
+                        st.caption(
+                            "Shading marks moments with similar sound patterns. Shared instruments can also create overlap, so this is not a confirmed sample percentage."
+                        )
+                        st.plotly_chart(spectral_plot, width="stretch", key="spectral_comparison")
+                        st.caption(
+                            "PF-NMF highlights similar sound in your track; it does not tell us which passage of the original was used. Source times appear only when available from matching or your review. Each track’s colour scale is relative to its own peak."
+                        )
+
+                    else:
+                        st.write(
+                            "Replayed melodies and re-sung lyrics need your listening notes. The tool cannot automatically locate them yet. Describe them separately from any recording sample in step 3."
+                        )
+                with st.expander("How the analysis works · technical details"):
+                    st.caption(
+                        "The tool compares sound patterns. It cannot reliably identify instruments, lyrics or musical sections for you yet. Your listening notes complete the document."
+                    )
+                    st.json(result.methods)
+                    st.write("Processing time (seconds)", result.timings_seconds)
+                    for rights in result.input.analysis_scope:
+                        st.write(getattr(result, rights).describe.limitations)
 
 
-with views[2]:
+@st.fragment
+def render_review():
+    if st.session_state.pop("refresh_screen", False):
+        st.rerun(scope="app")
+    result = st.session_state.get("analysis")
     if result is not None:
         reviewed_paths = {}
         for rights in result.input.analysis_scope:
@@ -1073,94 +1126,104 @@ with views[2]:
                     except ValueError as exc:
                         st.error(str(exc))
 
-with views[3]:
-    st.subheader("Your Nature of Use")
-    st.caption(
-        "The finished product: a clear account of what you took and how you used it. Review the text, then download your document."
-    )
-    if result is None:
-        st.write("Add your tracks and work through the first three steps to create your document.")
-    else:
-        missing = missing_document_inputs(result)
-        if missing:
-            st.warning("This is an unfinished draft. These details still need your input:")
-            for item in missing:
-                st.write("• " + item)
-        elif result.review.status != "approved":
-            st.info(
-                "Your details are filled in. Give the description a final listening check and mark it as reviewed on the review screen."
+    for index, next_label in [
+        (2, "Describe the sound"),
+        (3, "Place the sample"),
+        (4, "Review your draft"),
+    ]:
+        with st.container(key=f"stage_{index}_navigation"):
+            errors = [
+                error
+                for stage in range(2, index + 1)
+                for error in st.session_state.get("step_errors", {}).get(stage, [])
+            ]
+            if errors:
+                st.caption("Before you continue: " + "; ".join(errors))
+            st.divider()
+            back, forward = st.columns([1, 2])
+            back.button(
+                "← Back", key=f"wizard_back_{index}", on_click=go_to_step, args=(index - 1,)
+            )
+            forward.button(
+                f"Next: {next_label} →",
+                key=f"wizard_next_{index}",
+                type="primary",
+                disabled=result is None
+                or any(
+                    st.session_state.get("step_errors", {}).get(stage, [])
+                    for stage in range(2, index + 1)
+                ),
+                on_click=go_to_step,
+                args=(index + 1,),
+            )
+
+
+with views[2]:
+    render_review()
+
+if current_step == 6:
+    with views[3]:
+        st.subheader("Your Nature of Use")
+        st.caption(
+            "The finished product: a clear account of what you took and how you used it. Review the text, then download your document."
+        )
+        if result is None:
+            st.write(
+                "Add your tracks and work through the first three steps to create your document."
             )
         else:
-            st.success("Reviewed Nature of Use · ready to download")
-        source = result.review.corrected or result.model_dump(mode="json")
-        with st.container(border=True, key="nature_document"):
+            missing = missing_document_inputs(result)
+            if missing:
+                st.warning("This is an unfinished draft. These details still need your input:")
+                for item in missing:
+                    st.write("• " + item)
+            elif result.review.status != "approved":
+                st.info(
+                    "Your details are filled in. Give the description a final listening check and mark it as reviewed on the review screen."
+                )
+            else:
+                st.success("Reviewed Nature of Use · ready to download")
+            source = result.review.corrected or result.model_dump(mode="json")
+            with st.container(border=True, key="nature_document"):
+                st.caption(
+                    "NATURE OF USE · "
+                    + ("REVIEWED" if result.review.status == "approved" else "DRAFT")
+                )
+                st.subheader(result.input.new_work.title + " — " + result.input.new_work.artist)
+                st.caption(
+                    "Original: "
+                    + result.input.original_work.title
+                    + " — "
+                    + result.input.original_work.artist
+                )
+                st.write(source["nature_of_use"]["text"])
+            left, right = st.columns(2)
+            left.download_button(
+                "Download Nature of Use · HTML",
+                document_html(result),
+                "nature-of-use.html",
+                "text/html",
+                type="primary",
+                width="content",
+            )
+            right.download_button(
+                "Download Nature of Use · Text",
+                document_text(result),
+                "nature-of-use.txt",
+                "text/plain",
+                width="content",
+            )
             st.caption(
-                "NATURE OF USE · " + ("REVIEWED" if result.review.status == "approved" else "DRAFT")
+                "The HTML document can be opened in a browser and printed to PDF. Download before leaving; drafts are saved for this session only."
             )
-            st.subheader(result.input.new_work.title + " — " + result.input.new_work.artist)
-            st.caption(
-                "Original: "
-                + result.input.original_work.title
-                + " — "
-                + result.input.original_work.artist
-            )
-            st.write(source["nature_of_use"]["text"])
-        left, right = st.columns(2)
-        left.download_button(
-            "Download Nature of Use · HTML",
-            document_html(result),
-            "nature-of-use.html",
-            "text/html",
-            type="primary",
-            width="content",
-        )
-        right.download_button(
-            "Download Nature of Use · Text",
-            document_text(result),
-            "nature-of-use.txt",
-            "text/plain",
-            width="content",
-        )
-        st.caption(
-            "The HTML document can be opened in a browser and printed to PDF. Download before leaving; drafts are saved for this session only."
-        )
-        with st.expander("Supporting analysis and saved versions"):
-            st.json(result.model_dump(mode="json", exclude={"review"}))
-            st.json(result.review.model_dump(mode="json"))
-            st.download_button(
-                "Download analysis data · JSON",
-                json_report(result),
-                "lastrada-analysis.json",
-                "application/json",
-            )
-    st.divider()
-    st.button("← Back: Review your draft", key="back_export", on_click=go_to_step, args=(5,))
-
-for index, next_label in [
-    (2, "Describe the sound"),
-    (3, "Place the sample"),
-    (4, "Review your draft"),
-]:
-    with st.container(key=f"stage_{index}_navigation"):
-        errors = [
-            error
-            for stage in range(2, index + 1)
-            for error in st.session_state.get("step_errors", {}).get(stage, [])
-        ]
-        if errors:
-            st.caption("Before you continue: " + "; ".join(errors))
+            with st.expander("Supporting analysis and saved versions"):
+                st.json(result.model_dump(mode="json", exclude={"review"}))
+                st.json(result.review.model_dump(mode="json"))
+                st.download_button(
+                    "Download analysis data · JSON",
+                    json_report(result),
+                    "lastrada-analysis.json",
+                    "application/json",
+                )
         st.divider()
-        back, forward = st.columns([1, 2])
-        back.button("← Back", key=f"wizard_back_{index}", on_click=go_to_step, args=(index - 1,))
-        forward.button(
-            f"Next: {next_label} →",
-            key=f"wizard_next_{index}",
-            type="primary",
-            disabled=result is None
-            or any(
-                st.session_state.get("step_errors", {}).get(stage, [])
-                for stage in range(2, index + 1)
-            ),
-            on_click=go_to_step,
-            args=(index + 1,),
-        )
+        st.button("← Back: Review your draft", key="back_export", on_click=go_to_step, args=(5,))

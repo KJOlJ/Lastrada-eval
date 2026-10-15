@@ -66,3 +66,7 @@ See [setup](docs/SETUP.md), [architecture and decisions](docs/TECHNICAL_DECISION
 ## Confidentiality
 
 Client documents, historical workbooks, commercial recordings, checkpoints, caches and real analysis outputs are not repository assets. Keep them outside this public checkout or under ignored `data/private/`, `outputs/`, and `cache/`. Only synthetic fixtures belong in source control. `.gitignore` helps prevent accidents; inspect staged changes before publishing.
+
+### Interaction performance
+
+Review controls use a Streamlit fragment so ordinary entries do not rebuild playback or spectral charts. Audio bytes and spectral views are retained within the private session; charts refresh when their evidence or theme changes and render only on the listening screen. Downloads render on the final screen. Small input widgets stay mounted to preserve backtracking edits. Confirming credits reuses the preliminary analysis when the upload identities, demonstration mode and settings are unchanged; enabling optional matching runs its analysis separately. New Sample clears these session assets.

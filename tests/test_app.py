@@ -170,7 +170,6 @@ def test_prefilled_times_require_confirmation_and_loop_answers_fill_only_blanks(
     assert saved["detection_status"] == "candidate"
     assert saved["sample_detected"] is None
     assert saved["sample_occurrences"][0]["status"] == "estimated"
-    by_label(app.button, "← Back: Review your draft").click().run()
     question = next(r for r in app.radio if "repeating loop?" in r.label)
     question.set_value("Yes").run()
     by_label(app.button, "Use this answer to fill the details").click().run()
@@ -333,3 +332,48 @@ def test_recording_sample_can_finish_without_replayed_music():
     assert saved["publishing"]["describe"]["elements"] == []
     assert saved["master"]["locate"]["sample_detected"] is True
     assert saved["master"]["locate"]["sample_occurrences"]
+
+
+def test_reuse_analysis_and_media_without_work_on_hidden_screens(monkeypatch):
+    from unittest.mock import Mock
+    from lastrada.audio import io
+    from lastrada.measurement import pfnmf
+    from lastrada.reporting import comparison
+
+    measure = Mock(wraps=pfnmf.measure)
+    encode = Mock(wraps=io.wav_bytes)
+    spectra = Mock(wraps=comparison.spectral_view)
+    figure = Mock(wraps=comparison.comparison_figure)
+    monkeypatch.setattr("lastrada.pipeline.measure", measure)
+    monkeypatch.setattr(io, "wav_bytes", encode)
+    monkeypatch.setattr(comparison, "spectral_view", spectra)
+    monkeypatch.setattr(comparison, "comparison_figure", figure)
+    app = AppTest.from_file(
+        Path(__file__).resolve().parents[1] / "app.py", default_timeout=30
+    ).run()
+    by_label(app.button, "Start").click().run()
+    by_label(app.checkbox, "Use a clearly labeled synthetic demonstration").check().run()
+    by_label(app.button, "Next: Track details →").click().run()
+    assert measure.call_count == 1
+    by_label(app.radio, "Type of reuse").set_value("Master")
+    by_label(app.button, "Find suggested moments").click().run()
+    assert measure.call_count == 1  # Credits/scope do not repeat PF-NMF.
+    assert encode.call_count == spectra.call_count == 2
+    assert figure.call_count == 1
+    app.radio(key="review_master_agreement").set_value("Yes, use these times").run()
+    by_label(app.button, "Next: Describe the sound →").click().run()
+    assert len(app.get("plotly_chart")) == 0
+    assert len(app.get("audio")) == 0
+    for value in ["Drum break", "Bassline", "Vocal phrase"]:
+        app.text_input(key="review_master_element").set_value(value).run()
+    assert measure.call_count == 1
+    assert encode.call_count == spectra.call_count == 2
+    assert figure.call_count == 1
+    # Returning to listening retains exact evidence and cached media.
+    app.button(key="wizard_back_3").click().run()
+    assert len(app.get("plotly_chart")) == 1
+    assert encode.call_count == spectra.call_count == 2
+    assert app.text_input(key="review_master_element").value == "Vocal phrase"
+    by_label(app.button, "New Sample").click().run()
+    assert "playback_bytes" not in app.session_state
+    assert "decoded_pair" not in app.session_state

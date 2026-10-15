@@ -2,7 +2,7 @@
 
 Validated in a Python 3.12 Linux cloud environment on CPU with FFmpeg available.
 
-- `pytest -q`: 71 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow with Next/Back navigation, saved edits and approval preservation.
+- `pytest -q`: 73 tests passed, including numerical coverage, synthetic PF-NMF, compressed decoding, strict input/leakage boundaries, rights isolation, candidate grouping, review invariants, evaluation abstentions and a Streamlit interaction workflow with Next/Back navigation, saved edits and approval preservation.
 - `ruff check .` and `git diff --check`: passed.
 - Synthetic end-to-end baseline: known coverage 66.67%, estimated spectral activation 67.07%, absolute error 0.40 percentage points. This single generated signal pair is not a real-music benchmark.
 - `scripts/check_sampleid.py`: authoritative checksum-verified Sony weights, CPU inference, embedding shape 1×2048 and self-match cosine approximately 0.99999988. This is integration evidence, not historical accuracy.
@@ -26,3 +26,5 @@ For creator-selected “throughout” placement, generated narrative and HTML/te
 Spectral comparison tests verify bounded display data, silence rendering and evidence-aware hover labels: unlocated source passages are explicit, and original-track highlights require supplied source timestamps. Display aggregation does not modify PF-NMF intervals.
 
 Chromium rendered both spectral panels after synthetic analysis and displayed the suggested-moment tooltip on hover, including the explicit unlocated-source message.
+
+Performance regression checks count analysis, encoding, spectrum and figure calls across review edits and navigation. Default intake performs PF-NMF once; two audio encodes and two spectral transforms are reused. Non-listening screens emit no audio or Plotly chart. Chromium verified that review interactions retain the existing chart DOM, navigation updates the active screen, and musical edits survive backtracking. Preview reuse preserves measurement evidence and isolates requested rights without mutating the original preview. These are local checks, not hosted latency measurements.

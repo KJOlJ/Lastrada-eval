@@ -90,3 +90,25 @@ def analyze_pair(
         if work.audio_version_warning:
             result.warnings.append(work.audio_version_warning)
     return result
+
+
+def reuse_preview(preview, intake):
+    """Attach confirmed credits/scope to the same pair's default analysis.
+
+    Caller must verify that the uploads and analysis settings are unchanged.
+    Optional recognition runs use analyze_pair instead.
+    """
+    result = preview.model_copy(deep=True)
+    result.case_id, result.input = intake.case_id, intake
+    result.publishing = analyze_publishing("publishing" in intake.analysis_scope)
+    if "master" not in intake.analysis_scope:
+        result.master = PathResult(
+            rights_type="master", locate=Locate(detection_status="not_requested")
+        )
+        result.methods.pop("measurement", None)
+        result.methods.pop("sampleid", None)
+    result.nature_of_use = draft(result)
+    for work in (intake.original_work, intake.new_work):
+        if work.audio_version_warning:
+            result.warnings.append(work.audio_version_warning)
+    return result

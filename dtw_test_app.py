@@ -20,7 +20,6 @@ from lastrada.alignment.intervals import coverage
 from lastrada.alignment.local import refine_candidate
 from lastrada.alignment.dtw import (
     duration_ratio_is_plausible,
-    refine_candidate_dtw,
     refine_candidate_dtw_details,
 )
 from lastrada.alignment.stems import compare_candidate_stems
@@ -654,7 +653,7 @@ if original_file and new_file:
         if not demucs_available():
             st.error(
                 "Demucs is not installed. From the repository root run:\n\n"
-                "`\.venv\\Scripts\\python.exe -m pip install -e \".[stems]\"`"
+                "`.\\.venv\\Scripts\\python.exe -m pip install -e \".[stems]\"`"
             )
 
         source_start, source_end, new_start, new_end = _candidate_inputs("stems")

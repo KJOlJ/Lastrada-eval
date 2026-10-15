@@ -48,6 +48,17 @@ class StemComparisonResult:
 
     @property
     def best(self) -> StemPairEvidence | None:
+        # For listening, prefer a separated accepted pair over the full-mix
+        # baseline. The complete table still shows every ordered pair.
+        for item in self.evidence:
+            if item.accepted and (
+                item.source_stem != "full_mix"
+                or item.derivative_stem != "full_mix"
+            ):
+                return item
+        for item in self.evidence:
+            if item.accepted:
+                return item
         return self.evidence[0] if self.evidence else None
 
 

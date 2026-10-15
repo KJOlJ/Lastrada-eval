@@ -228,8 +228,19 @@ with st.sidebar:
         )
 
 
+def check_use(rights):
+    prefix = f"review_{rights}_"
+    absent = st.session_state.get(prefix + "status") == "not_detected"
+    st.session_state[prefix + "checked"] = absent
+    if absent:
+        st.session_state[prefix + "agreement"] = "Not checked"
+        st.session_state[prefix + "times_confirmed"] = False
+
+
 def accept_times(rights):
     prefix = f"review_{rights}_"
+    if st.session_state.get(prefix + "status") == "not_detected":
+        return
     if st.session_state.get(prefix + "agreement") == "Yes, use these times":
         st.session_state[prefix + "status"] = "verified"
     else:
@@ -666,17 +677,39 @@ with views[2]:
                             "verified",
                         ].index(path.locate.detection_status),
                         key=key + "status",
-                        format_func=lambda x: {
+                        on_change=check_use,
+                        args=(rights,),
+                        format_func=lambda x, rights=rights: {
                             "not_verified": "I haven’t checked it yet",
                             "unknown": "I’m not sure",
                             "candidate": "Possible use — needs checking",
-                            "not_detected": "I didn’t find reuse in this path",
+                            "not_detected": (
+                                "I didn’t replay or re-sing anything"
+                                if rights == "publishing"
+                                else "I didn’t use the original recording"
+                            ),
                             "verified": "I’ve confirmed this use",
                         }[x],
                     )
                     st.caption(
                         "Choose ‘I’ve confirmed this use’ only after listening. Similarity scores cannot confirm a sample for you."
                     )
+                if status == "not_detected":
+                    st.markdown(
+                        "<style>"
+                        + "".join(
+                            f".st-key-stage_{stage}_{rights}_{section} {{display:none !important;}}"
+                            for stage, section in [(2, "times"), (3, "sound"), (4, "placement")]
+                        )
+                        + "</style>",
+                        unsafe_allow_html=True,
+                    )
+                    with st.container(key=f"stage_2_{rights}_skipped"):
+                        st.caption(
+                            "No replayed or re-sung music — nothing to add for this check. Continue with your recording sample."
+                            if rights == "publishing"
+                            else "No recording sample — nothing to add for this check."
+                        )
                 with st.container(key=f"stage_2_{rights}_times"):
                     st.markdown("### Check the moments")
                     st.caption(
@@ -696,6 +729,7 @@ with views[2]:
                         horizontal=True,
                         on_change=accept_times,
                         args=(rights,),
+                        disabled=status == "not_detected",
                     )
                     editable = agreement == "No, let me edit"
                     rows = [
@@ -922,6 +956,17 @@ with views[2]:
                     path.classification.review_required = not confirmed or (
                         status == "verified" and placement == "Needs review"
                     )
+                    if status == "not_detected":
+                        # Retain widget edits for backtracking, but exclude unused-path claims.
+                        from lastrada.schemas.models import Description, Classification
+
+                        path.locate.pitch_shift_semitones = None
+                        path.describe = Description()
+                        path.classification = Classification(
+                            source="expert_review",
+                            review_required=not confirmed,
+                            reason="Creator confirmed this type of reuse does not apply",
+                        )
                     reviewed_paths[rights] = path.model_dump(mode="json")
                 except ValueError as exc:
                     st.error(f"{rights.capitalize()}: {exc}")

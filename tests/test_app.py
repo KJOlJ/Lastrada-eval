@@ -288,3 +288,48 @@ def test_times_acceptance_and_quality_gates():
     by_label(app.checkbox, "I’ve listened and confirmed these times").check()
     by_label(app.selectbox, "Have you checked this use?").set_value("verified").run()
     assert not by_label(app.button, "Next: Describe the sound →").disabled
+
+
+def test_recording_sample_can_finish_without_replayed_music():
+    app = AppTest.from_file(
+        Path(__file__).resolve().parents[1] / "app.py", default_timeout=30
+    ).run()
+    by_label(app.button, "Start").click().run()
+    by_label(app.checkbox, "Use a clearly labeled synthetic demonstration").check().run()
+    by_label(app.button, "Find suggested moments").click().run()
+    # Reproduce the confusing state: accepting an empty publishing table.
+    app.radio(key="review_publishing_agreement").set_value("Yes, use these times").run()
+    assert by_label(app.button, "Next: Describe the sound →").disabled
+    app.selectbox(key="review_publishing_status").set_value("not_detected").run()
+    assert app.session_state["review_publishing_checked"] is True
+    assert app.session_state["review_publishing_agreement"] == "Not checked"
+    assert app.radio(key="review_publishing_agreement").disabled
+    # The recording evidence is still required independently.
+    assert by_label(app.button, "Next: Describe the sound →").disabled
+    app.radio(key="review_master_agreement").set_value("Yes, use these times").run()
+    assert not by_label(app.button, "Next: Describe the sound →").disabled
+    by_label(app.button, "Next: Describe the sound →").click().run()
+    for field, value in [
+        ("element", "Drum break"),
+        ("method", "Chopped original audio"),
+        ("repetition", "Looped under verses"),
+        ("role", "Rhythm bed"),
+    ]:
+        app.text_input(key="review_master_" + field).set_value(value)
+    app.run()
+    by_label(app.button, "Next: Place the sample →").click().run()
+    app.multiselect(key="review_master_sections").set_value(["verse"])
+    app.selectbox(key="review_master_placement").set_value("verses")
+    app.checkbox(key="review_master_checked").check().run()
+    assert not by_label(app.button, "Next: Review your draft →").disabled
+    by_label(app.button, "Next: Review your draft →").click().run()
+    app.text_input(key="review_name").set_value("Creator").run()
+    assert not by_label(app.button, "Next: Your Nature of Use →").disabled
+    by_label(app.button, "Next: Your Nature of Use →").click().run()
+    assert not app.exception
+    saved = app.session_state["analysis"].review.corrected
+    assert saved["publishing"]["locate"]["detection_status"] == "not_detected"
+    assert saved["publishing"]["locate"]["sample_occurrences"] == []
+    assert saved["publishing"]["describe"]["elements"] == []
+    assert saved["master"]["locate"]["sample_detected"] is True
+    assert saved["master"]["locate"]["sample_occurrences"]

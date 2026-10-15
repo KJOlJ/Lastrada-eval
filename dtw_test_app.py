@@ -113,19 +113,30 @@ if original_file and new_file:
     tab_full, tab_manual = st.tabs(["Full SampleID → DTW", "Manual candidate → DTW"])
 
     with tab_full:
-        checkpoint = os.getenv("LASTRADA_SAMPLEID_CHECKPOINT") or (
-            "checkpoints/sampleid-best.ckpt"
+        detected_checkpoint = os.getenv("LASTRADA_SAMPLEID_CHECKPOINT") or (
+            str(Path("checkpoints/sampleid-best.ckpt").resolve())
             if Path("checkpoints/sampleid-best.ckpt").is_file()
-            else None
+            else ""
         )
+        checkpoint_text = st.text_input(
+            "Sony checkpoint path",
+            value=detected_checkpoint,
+            placeholder=r"C:\Users\you\.lastrada_sampleid\sampleid-best.ckpt",
+            help=(
+                "Paste the full path to sampleid-best.ckpt, set LASTRADA_SAMPLEID_CHECKPOINT, "
+                "or place it in checkpoints/sampleid-best.ckpt."
+            ),
+        )
+        checkpoint = checkpoint_text.strip() or None
+        checkpoint_ok = bool(checkpoint and Path(checkpoint).is_file())
 
-        st.write(
-            "**Checkpoint:** "
-            + (str(checkpoint) if checkpoint else "not configured on this machine")
-        )
-        st.caption(
-            "Set LASTRADA_SAMPLEID_CHECKPOINT or place sampleid-best.ckpt in checkpoints/."
-        )
+        if checkpoint_ok:
+            size_mb = Path(checkpoint).stat().st_size / 1024 / 1024
+            st.success(f"Checkpoint found ({size_mb:.1f} MB): {checkpoint}")
+        elif checkpoint:
+            st.error(f"Checkpoint path does not exist: {checkpoint}")
+        else:
+            st.warning("Sony checkpoint is not configured on this machine.")
 
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -159,11 +170,12 @@ if original_file and new_file:
         )
 
         if st.button("Run full pipeline", type="primary", key="run_full"):
-            if not checkpoint:
+            if not checkpoint_ok:
                 st.error(
-                    "Sony checkpoint is unavailable. Use the Manual candidate tab or configure the checkpoint."
+                    "Sony checkpoint is unavailable. Paste a valid checkpoint path above or use the Manual candidate tab."
                 )
             else:
+                coarse = None
                 try:
                     adapter = SampleIDAdapter(
                         checkpoint,
@@ -180,7 +192,6 @@ if original_file and new_file:
                         )
                 except SampleIDUnavailable as exc:
                     st.error(str(exc))
-                    coarse = []
 
                 if coarse:
                     rows = []
@@ -267,8 +278,8 @@ if original_file and new_file:
                         file_name="dtw_test_results.csv",
                         mime="text/csv",
                     )
-                else:
-                    st.info("No Sony candidates were returned under the current v0 settings.")
+                elif coarse == []:
+                    st.info("SampleID ran successfully but returned no candidates under the current v0 settings.")
 
     with tab_manual:
         st.write(

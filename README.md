@@ -28,7 +28,7 @@ The landing page introduces **Your Music, Your Time.** with a centered Start but
 4. **Describe the sound:** name what you used, how you used it, repetition and its musical role.
 5. **Place the sample:** name song sections, overall placement and any known pitch change.
 6. **Review your draft:** generate and edit the Nature of Use text, add your name and save or mark it as reviewed.
-7. **Your Nature of Use:** preview and download HTML or text. HTML can be printed to PDF; supporting JSON is optional.
+7. **Your Nature of Use:** preview and download HTML or text. When placement is “throughout,” the document describes that placement without listing every occurrence; detailed times remain in the supporting JSON. HTML can be printed to PDF; supporting JSON is optional.
 
 Estimated master-analysis times populate a read-only table. Accept them to carry their exact values into the review, or choose **No, let me edit** to unlock corrections; publishing never inherits them. Timing patterns prompt questions about recurring use, melody and short loops. Only a creator-confirmed answer fills musical details, without replacing existing edits. Suggested times need a separate listening confirmation.
 

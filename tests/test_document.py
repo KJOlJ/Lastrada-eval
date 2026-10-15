@@ -67,3 +67,28 @@ def test_document_escapes_user_text():
     result.nature_of_use.text = "<script>bad()</script>"
     assert "<script>" not in document_html(result)
     assert "&lt;script&gt;" in document_html(result)
+
+
+def test_throughout_summarizes_times_in_narrative_and_both_exports():
+    result = example()
+    path = result.master
+    path.locate.detection_status = "verified"
+    path.locate.sample_detected = True
+    path.locate.sample_occurrences = [
+        Interval(new_start=2, new_end=3, source="expert_review", status="expert_verified"),
+        Interval(new_start=5, new_end=6, source="expert_review", status="expert_verified"),
+    ]
+    path.classification.placement = Placement.THROUGHOUT
+    path.describe.repetition = "A short loop repeated in the track"
+    result.nature_of_use.text = creator_narrative(result)
+    for text in (result.nature_of_use.text, document_text(result), document_html(result)):
+        assert "throughout the track" in text
+        assert "A short loop repeated in the track" in text
+        assert "0:02.00" not in text
+        assert "0:05.00" not in text
+    # Detailed evidence is preserved for analysis and JSON export.
+    assert len(result.model_dump()["master"]["locate"]["sample_occurrences"]) == 2
+    path.classification.placement = Placement.VERSES
+    result.nature_of_use.text = creator_narrative(result)
+    assert "0:02.00–0:03.00" in result.nature_of_use.text
+    assert "0:05.00–0:06.00" in document_text(result)

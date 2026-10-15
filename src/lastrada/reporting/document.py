@@ -69,11 +69,14 @@ def document_text(analysis: Analysis):
                     lines.append(
                         f"{feature.feature.replace('_', ' ').capitalize()}: {feature.value}"
                     )
-            for occurrence in path.locate.sample_occurrences:
-                lines.append(
-                    f"In new track: {timestamp(occurrence.new_start)}–{timestamp(occurrence.new_end)}; "
-                    f"in original: {timestamp(occurrence.original_start)}–{timestamp(occurrence.original_end)}"
-                )
+            if path.classification.placement == "throughout":
+                lines.append("Placement: throughout the track")
+            else:
+                for occurrence in path.locate.sample_occurrences:
+                    lines.append(
+                        f"In new track: {timestamp(occurrence.new_start)}–{timestamp(occurrence.new_end)}; "
+                        f"in original: {timestamp(occurrence.original_start)}–{timestamp(occurrence.original_end)}"
+                    )
             if (
                 path.locate.total_covered_seconds is not None
                 and path.locate.coverage_percentage is not None
@@ -146,7 +149,9 @@ def creator_narrative(analysis):
         parts.append(f"The new track uses {element} from {name}.")
         if path.describe.reuse_type:
             parts.append(f"How it is used: {path.describe.reuse_type}.")
-        if path.locate.sample_occurrences:
+        if path.classification.placement == "throughout":
+            parts.append("It can be heard throughout the track.")
+        elif path.locate.sample_occurrences:
             ranges = ", ".join(
                 f"{timestamp(i.new_start)}–{timestamp(i.new_end)}"
                 for i in path.locate.sample_occurrences

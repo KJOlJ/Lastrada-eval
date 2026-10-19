@@ -8,7 +8,7 @@
   "max_duration_seconds": 600,
   "sampleid_chunk_seconds": 5.0,
   "sampleid_hop_seconds": 1.0,
-  "sampleid_similarity_threshold": 0.8,
+  "sampleid_similarity_threshold": -1.0,
   "sampleid_batch_size": 4,
   "dtw_enabled": true,
   "dtw_search_padding_seconds": 4.0,

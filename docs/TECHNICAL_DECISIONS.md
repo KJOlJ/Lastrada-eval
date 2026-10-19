@@ -31,3 +31,47 @@ The authoritative checkpoint was downloaded after the Zenodo network requirement
 A reviewer supplies independent evidence for each rights path. Verified reuse requires explicit expert intervals. Coverage is recalculated from the union of corrected intervals. Approval requires named review, resolved findings and classification, and a narrative. Automated outputs are retained alongside a separate corrected envelope. Approving documentation is not legal clearance. JSON and escaped standalone HTML exports contain no recordings.
 
 No case database, login, shared storage, background queue, external LLM or production deployment is included. Do not expose the app to untrusted networks with confidential recordings until access controls and retention are designed. Telemetry is disabled. Input paths and public documentation contain no client case narratives.
+
+## Guarded DTW candidate refinement
+
+SampleID remains the candidate-localization stage. A new optional
+`alignment/dtw.py` refinement stage runs only after SampleID has supplied both
+source and new-work timestamps. It computes a lightweight STFT-derived chroma
+sequence, searches pitch shifts within a configurable semitone range, and uses
+subsequence Dynamic Time Warping to tighten the new-work placement.
+
+DTW is not allowed to turn harmonic resemblance into a detection. The refiner
+abstains and preserves the coarse SampleID interval unless the refined placement
+still overlaps the SampleID hint, exceeds a minimum duration, and falls inside a
+configured derivative/source duration ratio. Defaults accept ratios from 0.5x to
+1.5x; these are conservative engineering guardrails, not validated legal or
+musicological thresholds.
+
+The pipeline first attempts direct waveform correlation for near-identical audio.
+Guarded DTW is a fallback for moderate pitch/time transformations. All outputs
+remain status=`candidate`; DTW cost is not stored as probability or confidence,
+and the original SampleID similarity is preserved only as provenance from the
+recognition stage. Exact source-boundary refinement, chopped/reordered samples,
+and calibrated real-recording accuracy remain future validation work.
+
+## Optional stem-assisted comparison
+
+`separation/demucs.py` is an optional local adapter around the Demucs command-line
+interface. It separates padded candidate crops rather than complete songs,
+caches the resulting audio outside Git, and retains the crop's full mix as a
+baseline. The six-source model can estimate vocals, drums, bass, guitar, piano
+and other; model labels and audio remain imperfect estimates with bleed and
+artifacts.
+
+`alignment/stems.py` compares same-label stems and a small set of guitar/piano ↔
+other cross-pairs. Each pair is processed through the same guarded DTW routine.
+Accepted rows only indicate that the estimated stems produced an alignment that
+passed the timing guardrails. They do not establish an exact studio stem, a
+verified sample, or a final musical-element classification.
+
+The feature is excluded from production dependencies and is installed with the
+optional `stems` extra. The first run may download large model weights and CPU
+separation can take several minutes. It is exposed in the engineering test bench,
+not silently enabled in the client-facing Nature-of-Use workflow. Promotion into
+the main pipeline requires real-recording validation, resource profiling and an
+explicit review design for stem evidence.

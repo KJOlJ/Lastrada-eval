@@ -5,6 +5,7 @@ on:
     branches: [feat/sony-dtw-main-flow]
     paths:
       - requirements.txt
+      - src/lastrada/recognition/sampleid_adapter.py
       - .github/workflows/validate-sony-production-runtime.yml
 
 jobs:
@@ -22,10 +23,14 @@ jobs:
           python - <<'PY'
           import torch
           import sampleid
-          import src.networks.resnet_ibn
-          from sampleid import SampleID
+          from lastrada.recognition.sampleid_adapter import (
+              _prepare_sampleid_model_imports,
+          )
 
+          SampleID = _prepare_sampleid_model_imports()
           assert SampleID is not None
+          import src.networks.resnet_ibn
+
           print('torch:', torch.__version__)
           print('sampleid:', sampleid.__file__)
           print('src.networks.resnet_ibn: OK')

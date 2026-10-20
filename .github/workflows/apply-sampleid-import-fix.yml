@@ -1,0 +1,33 @@
+name: Apply SampleID import fix
+
+on:
+  push:
+    branches: [feat/sony-dtw-main-flow]
+    paths:
+      - scripts/fix_sampleid_import_path.py
+      - .github/workflows/apply-sampleid-import-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/sony-dtw-main-flow
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/fix_sampleid_import_path.py
+      - run: |
+          python -m py_compile src/lastrada/recognition/sampleid_adapter.py
+          git diff --check
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/lastrada/recognition/sampleid_adapter.py
+          git commit -m 'Resolve Sony checkpoint model imports reliably'
+          git push origin HEAD:feat/sony-dtw-main-flow

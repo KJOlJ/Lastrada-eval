@@ -8,8 +8,10 @@ sequence of top-ranked window matches before they enter DTW or human review.
 from collections import defaultdict
 from dataclasses import dataclass
 import hashlib
+import importlib
 import importlib.util
 from pathlib import Path
+import sys
 
 import numpy as np
 from scipy.signal import resample_poly
@@ -251,6 +253,53 @@ def group_candidates(
     ]
 
 
+def _prepare_sampleid_model_imports():
+    """Expose Sony's private checkpoint modules as top-level ``src``.
+
+    The checkpoint configuration names classes such as
+    ``src.networks.resnet_ibn.ResnetIBN``. The upstream editable install places
+    that package beneath the installed ``sampleid`` directory, while this
+    project also has a repository-level directory named ``src``. Put Sony's
+    package directory first and evict a previously resolved unrelated ``src``
+    namespace before Hydra instantiates the model.
+    """
+    import sampleid
+
+    package_root = Path(sampleid.__file__).resolve().parent
+    sony_src = package_root / "src"
+    if not sony_src.is_dir():
+        raise SampleIDUnavailable(
+            "Sony SampleID source modules are missing. Install the pinned "
+            "upstream repository in editable/source form."
+        )
+
+    root_text = str(package_root)
+    while root_text in sys.path:
+        sys.path.remove(root_text)
+    sys.path.insert(0, root_text)
+
+    loaded_src = sys.modules.get("src")
+    loaded_paths = {
+        Path(value).resolve()
+        for value in getattr(loaded_src, "__path__", [])
+    }
+    if loaded_src is not None and sony_src.resolve() not in loaded_paths:
+        for module_name in list(sys.modules):
+            if module_name == "src" or module_name.startswith("src."):
+                sys.modules.pop(module_name, None)
+
+    importlib.invalidate_caches()
+    try:
+        importlib.import_module("src.networks.resnet_ibn")
+    except Exception as exc:
+        raise SampleIDUnavailable(
+            "Sony checkpoint model modules could not be imported from the "
+            "installed SampleID source."
+        ) from exc
+
+    return sampleid.SampleID
+
+
 class SampleIDAdapter:
     def __init__(self, checkpoint, cache_dir="cache/sampleid", batch_size=4):
         if not checkpoint or not Path(checkpoint).is_file():
@@ -274,13 +323,15 @@ class SampleIDAdapter:
     def _load(self):
         if self._model is None:
             import torch
-            from sampleid import SampleID
 
+            SampleID = _prepare_sampleid_model_imports()
             torch.set_num_threads(2)
             try:
                 self._model = SampleID.load_checkpoint(
                     str(self.checkpoint), device=torch.device("cpu")
                 )
+            except SampleIDUnavailable:
+                raise
             except Exception as exc:
                 raise SampleIDUnavailable(
                     f"SampleID checkpoint could not load ({type(exc).__name__})."

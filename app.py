@@ -654,10 +654,11 @@ with views[0]:
                                 + ". PF-NMF will remain available as fallback context."
                             )
                 adapter_setup_time = perf_counter() - adapter_setup_start
+                reused_preview = reusable and (not use_sampleid or adapter is None)
                 with st.spinner("Measuring audio locally…"):
                     result = (
                         reuse_preview(st.session_state.preview_analysis, intake)
-                        if reusable and not use_sampleid
+                        if reused_preview
                         else analyze_pair(
                             intake,
                             original,
@@ -673,7 +674,7 @@ with views[0]:
                 result.timings_seconds["audio_preparation"] = preparation_time
                 result.timings_seconds["model_setup"] = adapter_setup_time
                 attachment_seconds = perf_counter() - analysis_start
-                if reusable and not use_sampleid:
+                if reused_preview:
                     result.timings_seconds["intake_attachment"] = attachment_seconds
                     result.timings_seconds["total"] += attachment_seconds
                 else:

@@ -8,8 +8,10 @@ sequence of top-ranked window matches before they enter DTW or human review.
 from collections import defaultdict
 from dataclasses import dataclass
 import hashlib
+import importlib
 import importlib.util
 from pathlib import Path
+import sys
 
 import numpy as np
 from scipy.signal import resample_poly
@@ -251,6 +253,74 @@ def group_candidates(
     ]
 
 
+def _prepare_sampleid_model_imports():
+    """Expose Sony's private checkpoint modules as top-level ``src``.
+
+    Pip may clone an editable VCS dependency into this project's ``src/sampleid``
+    directory. Because Lastrada itself uses a ``src`` layout, ``import sampleid``
+    can then resolve to a namespace package whose ``__file__`` is ``None``. Find
+    the real nested Sony package in either layout, put its directory first on
+    ``sys.path``, and clear any unrelated top-level ``src`` namespace before
+    Hydra instantiates checkpoint classes such as
+    ``src.networks.resnet_ibn.ResnetIBN``.
+    """
+    import sampleid as imported_sampleid
+
+    package_root = None
+    SampleID = getattr(imported_sampleid, "SampleID", None)
+    module_file = getattr(imported_sampleid, "__file__", None)
+    if module_file:
+        package_root = Path(module_file).resolve().parent
+    else:
+        for namespace_entry in getattr(imported_sampleid, "__path__", []):
+            namespace_root = Path(namespace_entry).resolve()
+            nested_package = namespace_root / "sampleid"
+            if (nested_package / "__init__.py").is_file():
+                actual_package = importlib.import_module("sampleid.sampleid")
+                SampleID = getattr(actual_package, "SampleID", None)
+                package_root = nested_package
+                break
+
+    if package_root is None or SampleID is None:
+        raise SampleIDUnavailable(
+            "Sony SampleID's installed source package could not be located. "
+            "Reinstall the pinned upstream repository in editable/source form."
+        )
+
+    sony_src = package_root / "src"
+    if not sony_src.is_dir():
+        raise SampleIDUnavailable(
+            "Sony SampleID source modules are missing. Install the pinned "
+            "upstream repository in editable/source form."
+        )
+
+    root_text = str(package_root)
+    while root_text in sys.path:
+        sys.path.remove(root_text)
+    sys.path.insert(0, root_text)
+
+    loaded_src = sys.modules.get("src")
+    loaded_paths = {
+        Path(value).resolve()
+        for value in getattr(loaded_src, "__path__", [])
+    }
+    if loaded_src is not None and sony_src.resolve() not in loaded_paths:
+        for module_name in list(sys.modules):
+            if module_name == "src" or module_name.startswith("src."):
+                sys.modules.pop(module_name, None)
+
+    importlib.invalidate_caches()
+    try:
+        importlib.import_module("src.networks.resnet_ibn")
+    except Exception as exc:
+        raise SampleIDUnavailable(
+            "Sony checkpoint model modules could not be imported from the "
+            "installed SampleID source."
+        ) from exc
+
+    return SampleID
+
+
 class SampleIDAdapter:
     def __init__(self, checkpoint, cache_dir="cache/sampleid", batch_size=4):
         if not checkpoint or not Path(checkpoint).is_file():
@@ -274,13 +344,15 @@ class SampleIDAdapter:
     def _load(self):
         if self._model is None:
             import torch
-            from sampleid import SampleID
 
+            SampleID = _prepare_sampleid_model_imports()
             torch.set_num_threads(2)
             try:
                 self._model = SampleID.load_checkpoint(
                     str(self.checkpoint), device=torch.device("cpu")
                 )
+            except SampleIDUnavailable:
+                raise
             except Exception as exc:
                 raise SampleIDUnavailable(
                     f"SampleID checkpoint could not load ({type(exc).__name__})."

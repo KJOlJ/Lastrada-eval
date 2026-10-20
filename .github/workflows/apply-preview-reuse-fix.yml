@@ -1,0 +1,33 @@
+name: Apply preview reuse fix
+
+on:
+  push:
+    branches: [feat/sony-dtw-main-flow]
+    paths:
+      - scripts/fix_main_flow_preview_reuse.py
+      - .github/workflows/apply-preview-reuse-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/sony-dtw-main-flow
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python scripts/fix_main_flow_preview_reuse.py
+      - run: |
+          python -m py_compile app.py
+          git diff --check
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app.py
+          git commit -m 'Reuse PF-NMF preview when Sony is unavailable'
+          git push origin HEAD:feat/sony-dtw-main-flow

@@ -61,4 +61,4 @@ websockets==17.2
 # Editable source install is required because the Sony checkpoint imports
 # src.networks.* modules that are omitted from the upstream wheel package.
 sampleid @ git+https://github.com/sony/sampleid.git@e212b0b9974d52d334cc793ef1b8cabaf251e5f8
--e .
+.

@@ -151,14 +151,17 @@ if result and current_identity != st.session_state.simple_identity:
 
 if result:
     st.divider()
-    st.subheader("Listen to the suggested matches")
     original, new = st.session_state.simple_audio
     candidates = result.master.locate.sample_occurrences
     sony_ran = result.methods.get("sampleid") == "local_cpu_chunk_embeddings"
+    st.subheader("Listen to the suggested matches" if candidates else "Your comparison")
     if result.synthetic:
         st.info("Synthetic preview · excerpts show known insertions in generated audio, not Sony predictions.")
     elif not sony_ran:
         st.warning("Sony matching did not complete. No Sony matches are available for this run.")
+        reason = result.methods.get("sampleid", "").removeprefix("unavailable:").strip()
+        st.error(reason or "The Sony model was not available for this analysis.")
+        st.caption("Open Your tracks above and click Analyze tracks to retry. The first model download is about 768 MB.")
     elif not candidates:
         st.info("No paired matches found under the current settings. This does not rule out reuse.")
     else:

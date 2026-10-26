@@ -3,6 +3,13 @@
 Run `streamlit run simple_app.py` to review the new interface locally. The existing
 `app.py` production entrypoint and its seven-step review workflow are unchanged.
 
+Local runs do not inherit Cloud Run environment variables. The preview defaults
+to the existing public Sony checkpoint URL on Zenodo, downloads it only when a
+real analysis is requested, and reuses the local cache afterward. The initial
+download is approximately 768 MB. `LASTRADA_SAMPLEID_CHECKPOINT_URL` and
+`LASTRADA_SAMPLEID_CHECKPOINT` still override the defaults. Failed Sony runs show
+the underlying reason directly above playback, not only in technical details.
+
 The new flow requires only an original recording and a new recording. The user
 clicks **Analyze tracks** once to run the existing Sony + guarded DTW pipeline.
 Filename credits are inferred where recognizable; otherwise the filename and an

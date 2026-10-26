@@ -1,5 +1,17 @@
 from pathlib import Path
+import pytest
 from streamlit.testing.v1 import AppTest
+
+
+@pytest.fixture(autouse=True)
+def isolate_ui_tests_from_local_sony_weights(monkeypatch):
+    """UI fixtures must not change behavior when a developer installs real weights."""
+    from lastrada.recognition.sampleid_adapter import SampleIDAdapter, SampleIDUnavailable
+
+    def unavailable(*args, **kwargs):
+        raise SampleIDUnavailable("Sony is intentionally disabled in synthetic UI tests")
+
+    monkeypatch.setattr(SampleIDAdapter, "__init__", unavailable)
 
 
 def by_label(elements, label):

@@ -5,6 +5,10 @@ from pathlib import Path
 import streamlit as st
 
 _SAMPLEID_MIN_BYTES = 100 * 1024 * 1024
+# Public provider URL, not a credential. Local previews do not inherit Cloud Run env vars.
+DEFAULT_CHECKPOINT_URL = (
+    "https://zenodo.org/records/17413869/files/sampleid-best.ckpt?download=1"
+)
 
 
 def _runtime_setting(name):
@@ -77,6 +81,7 @@ def resolve_sampleid_checkpoint(override=None, allow_download=False):
         [
             Path("checkpoints/sampleid-best.ckpt"),
             Path.home() / ".lastrada_sampleid" / "sampleid-best.ckpt",
+            Path(_runtime_setting("LASTRADA_CACHE_DIR") or "cache") / "sampleid" / "sampleid-best.ckpt",
         ]
     )
 
@@ -89,7 +94,7 @@ def resolve_sampleid_checkpoint(override=None, allow_download=False):
         if _valid_sampleid_checkpoint(resolved):
             return str(resolved), None
 
-    download_url = _runtime_setting("LASTRADA_SAMPLEID_CHECKPOINT_URL")
+    download_url = _runtime_setting("LASTRADA_SAMPLEID_CHECKPOINT_URL") or DEFAULT_CHECKPOINT_URL
     if allow_download and download_url:
         try:
             downloaded = _download_sampleid_checkpoint(download_url)

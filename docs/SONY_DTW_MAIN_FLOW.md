@@ -49,6 +49,25 @@ LASTRADA_SAMPLEID_CHECKPOINT_URL = "https://your-storage.example/sampleid-best.c
 The app downloads the checkpoint atomically into its runtime cache and validates
 that it is large enough and is a PyTorch ZIP checkpoint before loading it.
 
-The production requirements install Sony SampleID from the pinned upstream source
-in editable mode. This is required because the Sony checkpoint refers to
+The production requirements use `-e git+https://...#egg=sampleid` to install Sony
+SampleID from the pinned upstream source in editable mode. A plain
+`sampleid @ git+https://...` builds a regular wheel, which omits the nested
+`sampleid/src/` model modules. Editable installation is required because the Sony checkpoint refers to
 `src.networks.*` modules that are not included in the upstream wheel package.
+
+## Cloud Run
+
+The `lastrada-eval-git` service in project `lastrada-eval-8f795` uses Cloud Build
+buildpacks to install `requirements.txt`. Set
+`LASTRADA_SAMPLEID_CHECKPOINT_URL` as a Cloud Run environment variable. A valid
+checkpoint does not compensate for missing Python model modules: both the
+checkpoint and the editable Sony source installation are required.
+
+The **Validate Sony production runtime** workflow checks the editable installation
+and imports `src.networks.resnet_ibn` on pull requests targeting
+`feat/sony-dtw-main-flow`. It does not download weights or prove full inference.
+
+Pushing or merging into `feat/sony-dtw-main-flow` triggers a production deployment.
+Prepare fixes on a separate branch, review the PR and its validation results, and
+approve deployment before merging. After deployment, start a new analysis and
+confirm Sony runs before evaluating its candidate timestamps.

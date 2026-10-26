@@ -1,0 +1,87 @@
+{
+  "images": [
+    "$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA"
+  ],
+  "options": {
+    "logging": "CLOUD_LOGGING_ONLY",
+    "requestedVerifyOption": "VERIFIED",
+    "substitutionOption": "ALLOW_LOOSE"
+  },
+  "steps": [
+    {
+      "id": "Fetch verified Sony weights",
+      "name": "python:3.12-slim",
+      "entrypoint": "python",
+      "args": [
+        "scripts/fetch_sampleid.py",
+        "--output",
+        "checkpoints/sampleid-best.ckpt",
+        "--workers",
+        "8"
+      ]
+    },
+    {
+      "args": [
+        "build",
+        "$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA",
+        "--builder=gcr.io/buildpacks/builder:google-22",
+        "--network=cloudbuild",
+        "--publish",
+        "--path=.",
+        "--env=GOOGLE_ENTRYPOINT",
+        "--env=GOOGLE_PYTHON_VERSION=3.12.x",
+        "--env=GOOGLE_PYTHON_PACKAGE_MANAGER=pip"
+      ],
+      "entrypoint": "pack",
+      "env": [
+        "GOOGLE_ENTRYPOINT=$_ENTRYPOINT"
+      ],
+      "id": "Buildpack",
+      "name": "gcr.io/k8s-skaffold/pack"
+    },
+    {
+      "args": [
+        "run",
+        "--rm",
+        "--network=none",
+        "--entrypoint=/cnb/lifecycle/launcher",
+        "$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA",
+        "python3",
+        "scripts/verify_model.py"
+      ],
+      "entrypoint": "docker",
+      "id": "Verify Sony runtime",
+      "name": "gcr.io/cloud-builders/docker"
+    },
+    {
+      "args": [
+        "run",
+        "services",
+        "update",
+        "$_SERVICE_NAME",
+        "--image=$_AR_HOSTNAME/$_AR_PROJECT_ID/$_AR_REPOSITORY/$REPO_NAME/$_SERVICE_NAME:$COMMIT_SHA",
+        "--update-labels=managed-by=gcp-cloud-build-deploy-cloud-run,gcb-trigger-id=$_TRIGGER_ID,gcb-trigger-region=$LOCATION,commit-sha=$COMMIT_SHA,gcb-build-id=$BUILD_ID",
+        "--region=$_DEPLOY_REGION",
+        "--quiet"
+      ],
+      "entrypoint": "gcloud",
+      "id": "Deploy",
+      "name": "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    }
+  ],
+  "substitutions": {
+    "REPO_NAME": "kjolj-lastrada-eval",
+    "_AR_HOSTNAME": "europe-west1-docker.pkg.dev",
+    "_AR_PROJECT_ID": "lastrada-eval-8f795",
+    "_AR_REPOSITORY": "cloud-run-source-deploy",
+    "_DEPLOY_REGION": "europe-west1",
+    "_ENTRYPOINT": "python scripts/start_app.py",
+    "_SERVICE_NAME": "lastrada-eval-git",
+    "_TRIGGER_ID": "3f55ca26-20e0-47a1-9f30-b1d126804898"
+  },
+  "tags": [
+    "gcp-cloud-build-deploy-cloud-run",
+    "lastrada-eval-git"
+  ],
+  "serviceAccount": "projects/lastrada-eval-8f795/serviceAccounts/946466067533-compute@developer.gserviceaccount.com"
+}

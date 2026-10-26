@@ -6,12 +6,22 @@ on:
     paths:
       - requirements.txt
       - src/lastrada/recognition/sampleid_adapter.py
+      - src/lastrada/runtime/**
+      - scripts/fetch_sampleid.py
+      - scripts/verify_model.py
+      - scripts/start_app.py
+      - cloudbuild.json
       - .github/workflows/validate-sony-production-runtime.yml
   push:
     branches: [feat/sony-dtw-main-flow]
     paths:
       - requirements.txt
       - src/lastrada/recognition/sampleid_adapter.py
+      - src/lastrada/runtime/**
+      - scripts/fetch_sampleid.py
+      - scripts/verify_model.py
+      - scripts/start_app.py
+      - cloudbuild.json
       - .github/workflows/validate-sony-production-runtime.yml
   workflow_dispatch:
 
@@ -50,4 +60,15 @@ jobs:
           print('torch:', torch.__version__)
           print('sampleid:', sampleid.__file__)
           print('src.networks.resnet_ibn: OK')
+          PY
+      - name: Download and checksum-verify pinned Sony weights
+        run: python scripts/fetch_sampleid.py --output checkpoints/sampleid-best.ckpt
+      - name: Verify weights and inference without network access
+        run: |
+          python - <<'PY'
+          import runpy
+          from unittest.mock import patch
+
+          with patch('socket.socket.connect', side_effect=AssertionError('Network forbidden')):
+              runpy.run_path('scripts/verify_model.py', run_name='__main__')
           PY

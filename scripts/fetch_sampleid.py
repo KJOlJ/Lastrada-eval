@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path
 import tempfile
+import time
 from urllib.request import Request, urlopen
 
 RECORD = "https://zenodo.org/api/records/17413869"
@@ -50,17 +51,24 @@ def fetch(output, workers=8):
             index, start, end = item
             request = Request(URL, headers={"Range": f"bytes={start}-{end}"})
             target = folder / str(index)
-            with urlopen(request, timeout=60) as response, target.open("wb") as file:
-                if (
-                    response.status != 206
-                    or response.headers.get("Content-Range") != f"bytes {start}-{end}/{size}"
-                ):
-                    raise RuntimeError("Server did not honor requested byte range")
-                while block := response.read(1024 * 1024):
-                    file.write(block)
-            if target.stat().st_size != end - start + 1:
-                raise RuntimeError("Incomplete checkpoint range")
-            return index
+            for attempt in range(3):
+                try:
+                    with urlopen(request, timeout=120) as response, target.open("wb") as file:
+                        if (
+                            response.status != 206
+                            or response.headers.get("Content-Range") != f"bytes {start}-{end}/{size}"
+                        ):
+                            raise RuntimeError("Server did not honor requested byte range")
+                        while block := response.read(1024 * 1024):
+                            file.write(block)
+                    if target.stat().st_size != end - start + 1:
+                        raise RuntimeError("Incomplete checkpoint range")
+                    return index
+                except Exception:
+                    target.unlink(missing_ok=True)
+                    if attempt == 2:
+                        raise
+                    time.sleep(attempt + 1)
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = [executor.submit(part, item) for item in ranges]

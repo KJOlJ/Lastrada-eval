@@ -103,7 +103,8 @@ if run:
             adapter, setup_error = None, None
             if not demo:
                 progress.update(label="Preparing Sony analysis…")
-                st.write("The first run may take longer while the model downloads.")
+                if os.getenv("LASTRADA_REQUIRE_PREINSTALLED_MODEL") != "1":
+                    st.write("Local setup may take longer while the model downloads.")
                 checkpoint, setup_error = resolve_sampleid_checkpoint(allow_download=True)
                 if checkpoint:
                     try:
@@ -161,7 +162,7 @@ if result:
         st.warning("Sony matching did not complete. No Sony matches are available for this run.")
         reason = result.methods.get("sampleid", "").removeprefix("unavailable:").strip()
         st.error(reason or "The Sony model was not available for this analysis.")
-        st.caption("Open Your tracks above and click Analyze tracks to retry. The first model download is about 768 MB.")
+        st.caption("This is a server setup problem; you do not need to install or configure anything.")
     elif not candidates:
         st.info("No paired matches found under the current settings. This does not rule out reuse.")
     else:
